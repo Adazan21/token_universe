@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Token Universe • Coin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="container">
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo"></div>
+        <div class="brandText">
+          <div class="brandTitle"><a href="/" style="color:inherit; text-decoration:none;">Token Universe</a></div>
+          <div class="brandSub">Coin view</div>
+        </div>
+      </div>
+
+      <div class="topbarRight">
+        <button class="btn btnGhost" id="metricToggle" type="button">Metric: Market Cap</button>
+        <button class="btn btnGhost" id="densityToggle" type="button">Density: Comfortable</button>
+        <div class="badge"><span class="dot"></span>Live</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="tabs">
+        <a class="tab" href="/">🏠</a>
+        <a class="tab" href="/search">Search</a>
+        <a class="tab" href="/discover/trending">Trending</a>
+        <a class="tab" href="/discover/graduated">Newly graduated</a>
+        <a class="tab" href="/discover/verified">Verified</a>
+        <a class="tab" href="/watchlist">Watchlist</a>
+      </div>
+    </div>
+
+    {% if not pair %}
+      <div class="empty" style="margin-top:14px;">
+        <div class="emptyTitle">No Solana pair found</div>
+        <div class="emptySub"><code>{{ token_address }}</code></div>
+      </div>
+    {% else %}
+      {% set img = (pair.info.imageUrl if pair.info and pair.info.imageUrl else (pair.baseToken.address | avatar)) %}
+      {% set mcap = (pair.marketCap if pair.marketCap else (pair.fdv if pair.fdv else 0)) %}
+      {% set pc = (pair.priceChange if pair.priceChange else {}) %}
+      {% set h1 = pc.get('h1') %}
+      {% set h6 = pc.get('h6') %}
+      {% set h24 = pc.get('h24') %}
+      {% set rarity = (pair._rarity if pair._rarity else 'common') %}
+      {% set verified = (pair._verified if pair._verified else false) %}
+
+      <div class="coinCard {{ rarity }}">
+        <div class="coinTop">
+          <div class="coinLeft">
+            <img class="tokenIconXXL" src="{{ img }}" alt="{{ pair.baseToken.symbol }}"/>
+            <div>
+              <div class="coinTitle">
+                <span class="coinSym">{{ pair.baseToken.symbol }}</span>
+                <span class="pairMuted">/ {{ pair.quoteToken.symbol }}</span>
+                {% if verified %}
+                  <span class="verifiedBadge big">Verified</span>
+                {% endif %}
+              </div>
+
+              <div class="coinSub">
+                <span class="dex">{{ pair.dexId }}</span>
+                <span class="agePill bigAge">Age <b>{{ pair.pairCreatedAt | age }}</b></span>
+                <span class="rarityPill {{ rarity }}">{{ rarity|capitalize }}</span>
+              </div>
+
+              <div class="badgeRow">
+                <span class="chgBadge {{ h1 | pctclass }}">1h {{ h1 | pct }}</span>
+                <span class="chgBadge {{ h6 | pctclass }}">6h {{ h6 | pct }}</span>
+                <span class="chgBadge {{ h24 | pctclass }}">24h {{ h24 | pct }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="coinRight metricBox"
+               data-price="${{ pair.priceUsd | compact }}"
+               data-mcap="${{ mcap | compact }}">
+            <div class="metricTop">
+              <div>
+                <div class="metricLabel">Market Cap</div>
+                <div class="metricHero">${{ mcap | compact }}</div>
+              </div>
+              <div class="sparkWrap {{ h24 | pctclass }}">
+                {{ pc | spark }}
+              </div>
+            </div>
+
+            <div class="metricSub">
+              Liq <b>${{ (pair.liquidity.usd if pair.liquidity else 0) | compact }}</b>
+              • Vol 24h <b>${{ (pair.volume.h24 if pair.volume else 0) | compact }}</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="coinStats">
+          <div class="stat">
+            <div class="statLabel">Txns (24h)</div>
+            <div class="statValue">{{ ((pair.txns.h24.buys + pair.txns.h24.sells) if pair.txns else 0) | compact }}</div>
+          </div>
+          <div class="stat">
+            <div class="statLabel">FDV</div>
+            <div class="statValue">${{ pair.fdv | compact }}</div>
+          </div>
+          <div class="stat">
+            <div class="statLabel">Price</div>
+            <div class="statValue">${{ pair.priceUsd | compact }}</div>
+          </div>
+          <div class="stat">
+            <div class="statLabel">Liquidity</div>
+            <div class="statValue">${{ (pair.liquidity.usd if pair.liquidity else 0) | compact }}</div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="footer">Token Universe • Coin view</div>
+  </div>
+
+  <script src="/static/state.js"></script>
+  <script src="/static/ui.js"></script>
+  <script>
+    TokenUniverseUI.initCommonUI();
+    TokenUniverseUI.applyMetricUI();
+  </script>
+</body>
+</html>

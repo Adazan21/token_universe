@@ -1,0 +1,74 @@
+{% set img = (p.info.imageUrl if p.info and p.info.imageUrl else (p.baseToken.address | avatar)) %}
+{% set mcap = (p.marketCap if p.marketCap else (p.fdv if p.fdv else 0)) %}
+{% set pc = (p.priceChange if p.priceChange else {}) %}
+{% set h1 = pc.get('h1') %}
+{% set h6 = pc.get('h6') %}
+{% set h24 = pc.get('h24') %}
+{% set rarity = (p._rarity if p._rarity else 'common') %}
+{% set verified = (p._verified if p._verified else false) %}
+
+<div class="tile {{ rarity }}" data-token="{{ p.baseToken.address }}" data-href="/coin/{{ p.baseToken.address }}">
+  <div class="rankPill">#{{ rank }}</div>
+
+  <div class="tileRow">
+    <img class="tokenIconXL" src="{{ img }}" alt="{{ p.baseToken.symbol }}"/>
+
+    <div class="tileMeta">
+      <div class="symRow">
+        <div class="sym">{{ p.baseToken.symbol }}</div>
+        <div class="pairMuted">/ {{ p.quoteToken.symbol }}</div>
+        {% if verified %}
+          <span class="verifiedBadge">Verified</span>
+        {% endif %}
+      </div>
+
+      <div class="subRow">
+        <div class="dex">{{ p.dexId }}</div>
+        <div class="agePill">Age <b>{{ p.pairCreatedAt | age }}</b></div>
+        <div class="rarityPill {{ rarity }}">{{ rarity|capitalize }}</div>
+      </div>
+
+      <div class="badgeRow">
+        <span class="chgBadge {{ h1 | pctclass }}">1h {{ h1 | pct }}</span>
+        <span class="chgBadge {{ h6 | pctclass }}">6h {{ h6 | pct }}</span>
+        <span class="chgBadge {{ h24 | pctclass }}">24h {{ h24 | pct }}</span>
+      </div>
+    </div>
+
+    <div class="tileMetric metricBox"
+         data-price="${{ p.priceUsd | compact }}"
+         data-mcap="${{ mcap | compact }}">
+      <div class="metricTop">
+        <div>
+          <div class="metricLabel">Market Cap</div>
+          <div class="metricMain">${{ mcap | compact }}</div>
+        </div>
+        <div class="sparkWrap {{ h24 | pctclass }}">
+          {{ pc | spark }}
+        </div>
+      </div>
+
+      <div class="metricSub">
+        Liq <b>${{ (p.liquidity.usd if p.liquidity else 0) | compact }}</b>
+        • Vol <b>${{ (p.volume.h24 if p.volume else 0) | compact }}</b>
+      </div>
+
+      <button class="watchBtn" type="button" title="Toggle watchlist">☆</button>
+    </div>
+  </div>
+
+  <div class="tileStats">
+    <div class="stat">
+      <div class="statLabel">Txns 24h</div>
+      <div class="statValue">{{ ((p.txns.h24.buys + p.txns.h24.sells) if p.txns else 0) | compact }}</div>
+    </div>
+    <div class="stat">
+      <div class="statLabel">Buys</div>
+      <div class="statValue">{{ (p.txns.h24.buys if p.txns else 0) | compact }}</div>
+    </div>
+    <div class="stat">
+      <div class="statLabel">Sells</div>
+      <div class="statValue">{{ (p.txns.h24.sells if p.txns else 0) | compact }}</div>
+    </div>
+  </div>
+</div>

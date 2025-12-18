@@ -1,0 +1,232 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Token Universe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="container">
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo"></div>
+        <div class="brandText">
+          <div class="brandTitle">Token Universe</div>
+          <div class="brandSub">Paper trading arena • Solana memes</div>
+        </div>
+      </div>
+
+      <div class="topbarRight">
+        <button class="btn btnGhost" id="metricToggle" type="button">
+          Metric: Market Cap
+        </button>
+        <div class="badge">
+          <span class="dot"></span>
+          Live via DexScreener
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead">
+        <div>
+          <div class="h1">{{ title }}</div>
+          <div class="hint">Search by symbol, name, or Solana address. Or browse by tab.</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <a class="tab {{ 'active' if active_tab == 'positions' else '' }}" href="/">🏠</a>
+        <a class="tab {{ 'active' if active_tab == 'search' else '' }}" href="/search">Search</a>
+        <a class="tab {{ 'active' if active_tab == 'trending' else '' }}" href="/discover/trending">Trending</a>
+        <a class="tab {{ 'active' if active_tab == 'graduated' else '' }}" href="/discover/graduated">Newly graduated</a>
+        <a class="tab {{ 'active' if active_tab == 'verified' else '' }}" href="/discover/verified">Verified</a>
+        <a class="tab {{ 'active' if active_tab == 'watchlist' else '' }}" href="/watchlist">Watchlist</a>
+      </div>
+
+      <form method="get" action="/search" class="searchRow">
+        <input class="input" name="q" placeholder="bonk, wif, doge…" value="{{ q }}">
+        <button class="btn btnPrimary">Search</button>
+        <a class="btn btnGhost" href="/search">Reset</a>
+      </form>
+
+      {% if note %}
+        <div class="notice">{{ note }}</div>
+      {% endif %}
+    </div>
+
+    {% if pairs|length == 0 and not note %}
+      <div class="empty">
+        <div class="emptyTitle">No results</div>
+        <div class="emptySub">Try another query, or switch tabs.</div>
+      </div>
+    {% endif %}
+
+    <div class="grid">
+      {% for p in pairs %}
+        {% set img = (p.info.imageUrl if p.info and p.info.imageUrl else (p.baseToken.address | avatar)) %}
+        {% set mcap = (p.marketCap if p.marketCap else (p.fdv if p.fdv else 0)) %}
+        {% set pc = (p.priceChange if p.priceChange else {}) %}
+        {% set h1 = pc.get('h1') %}
+        {% set h6 = pc.get('h6') %}
+        {% set h24 = pc.get('h24') %}
+        {% set rarity = (p._rarity if p._rarity else 'common') %}
+
+        <div class="tile {{ rarity }}" data-href="/coin/{{ p.baseToken.address }}" data-token="{{ p.baseToken.address }}">
+          <div class="tileTop">
+            <div class="rankPill">#{{ loop.index }}</div>
+
+            <img class="tokenIconXL" src="{{ img }}" alt="{{ p.baseToken.symbol }}"/>
+
+            <div class="tileMeta">
+              <div class="symRow">
+                <div class="sym">{{ p.baseToken.symbol }}</div>
+                <div class="pairMuted">/ {{ p.quoteToken.symbol }}</div>
+              </div>
+
+              <div class="subRow">
+                <div class="dex">{{ p.dexId }}</div>
+                <div class="agePill">Age <b>{{ p.pairCreatedAt | age }}</b></div>
+                <div class="rarityPill {{ rarity }}">{{ rarity|capitalize }}</div>
+              </div>
+
+              <div class="badgeRow">
+                <span class="chgBadge {{ h1 | pctclass }}">1h {{ h1 | pct }}</span>
+                <span class="chgBadge {{ h6 | pctclass }}">6h {{ h6 | pct }}</span>
+                <span class="chgBadge {{ h24 | pctclass }}">24h {{ h24 | pct }}</span>
+              </div>
+            </div>
+
+            <div class="tileMetric metricBox"
+                 data-price="${{ p.priceUsd | compact }}"
+                 data-mcap="${{ mcap | compact }}">
+              <div class="metricTop">
+                <div>
+                  <div class="metricLabel">Market Cap</div>
+                  <div class="metricMain">${{ mcap | compact }}</div>
+                </div>
+
+                <div class="sparkWrap {{ h24 | pctclass }}">
+                  {{ pc | spark }}
+                </div>
+              </div>
+
+              <div class="metricSub">
+                Liq <b>${{ (p.liquidity.usd if p.liquidity else 0) | compact }}</b>
+              </div>
+
+              <button class="watchBtn" type="button" title="Toggle watchlist">☆</button>
+            </div>
+          </div>
+
+          <div class="tileStats">
+            <div class="stat">
+              <div class="statLabel">Vol 24h</div>
+              <div class="statValue">${{ (p.volume.h24 if p.volume else 0) | compact }}</div>
+            </div>
+            <div class="stat">
+              <div class="statLabel">Buys</div>
+              <div class="statValue">{{ (p.txns.h24.buys if p.txns else 0) | compact }}</div>
+            </div>
+            <div class="stat">
+              <div class="statLabel">Sells</div>
+              <div class="statValue">{{ (p.txns.h24.sells if p.txns else 0) | compact }}</div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="footer">
+      Token Universe • Ranks + rarity frames + watchlist • Sparkline zoomed out
+    </div>
+
+  </div>
+
+  <script>
+    // Card click navigation
+    document.querySelectorAll(".tile[data-href]").forEach((t) => {
+      t.addEventListener("click", (e) => {
+        // if user clicked the watch button, ignore (handled elsewhere)
+        if (e.target && e.target.classList && e.target.classList.contains("watchBtn")) return;
+        const href = t.getAttribute("data-href");
+        if (href) window.location.href = href;
+      });
+    });
+
+    // Metric toggle (Market Cap <-> Price)
+    const KEY_METRIC = "token_universe_metric";
+    const toggleBtn = document.getElementById("metricToggle");
+
+    function applyMetric(metric) {
+      const isMcap = metric === "mcap";
+      toggleBtn.textContent = "Metric: " + (isMcap ? "Market Cap" : "Price");
+
+      document.querySelectorAll(".metricBox").forEach((box) => {
+        const label = box.querySelector(".metricLabel");
+        const value = box.querySelector(".metricMain");
+        if (!label || !value) return;
+
+        if (isMcap) {
+          label.textContent = "Market Cap";
+          value.textContent = box.getAttribute("data-mcap") || "$?";
+        } else {
+          label.textContent = "Price";
+          value.textContent = box.getAttribute("data-price") || "$?";
+        }
+      });
+
+      localStorage.setItem(KEY_METRIC, metric);
+    }
+
+    const saved = localStorage.getItem(KEY_METRIC) || "mcap";
+    applyMetric(saved);
+
+    toggleBtn.addEventListener("click", () => {
+      const cur = localStorage.getItem(KEY_METRIC) || "mcap";
+      applyMetric(cur === "mcap" ? "price" : "mcap");
+    });
+
+    // Watchlist
+    const KEY_WATCH = "token_universe_watchlist";
+
+    function loadWatch() {
+      try { return JSON.parse(localStorage.getItem(KEY_WATCH) || "[]"); }
+      catch { return []; }
+    }
+    function saveWatch(arr) {
+      localStorage.setItem(KEY_WATCH, JSON.stringify(arr));
+    }
+    function isWatched(addr) {
+      return loadWatch().includes(addr);
+    }
+    function setWatchedUI(tile, watched) {
+      const btn = tile.querySelector(".watchBtn");
+      if (!btn) return;
+      btn.textContent = watched ? "★" : "☆";
+      tile.classList.toggle("watched", watched);
+      btn.classList.toggle("on", watched);
+    }
+
+    document.querySelectorAll(".tile[data-token]").forEach((tile) => {
+      const addr = tile.getAttribute("data-token");
+      setWatchedUI(tile, isWatched(addr));
+
+      const btn = tile.querySelector(".watchBtn");
+      if (!btn) return;
+
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const cur = loadWatch();
+        const idx = cur.indexOf(addr);
+        if (idx >= 0) cur.splice(idx, 1);
+        else cur.push(addr);
+        saveWatch(cur);
+        setWatchedUI(tile, idx < 0);
+      });
+    });
+  </script>
+</body>
+</html>

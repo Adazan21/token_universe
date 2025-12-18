@@ -1,0 +1,273 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Token Universe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="container">
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo"></div>
+        <div class="brandText">
+          <div class="brandTitle">Token Universe</div>
+          <div class="brandSub">Paper trading arena • Solana memes</div>
+        </div>
+      </div>
+
+      <div class="topbarRight">
+        <button class="btn btnGhost" id="metricToggle" type="button">
+          Metric: Market Cap
+        </button>
+        <div class="badge">
+          <span class="dot"></span>
+          Live via DexScreener
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead">
+        <div>
+          <div class="h1">{{ title }}</div>
+          <div class="hint">
+            {% if active_tab == 'positions' %}
+              Stored locally. Next step is “paper trades” that create positions automatically.
+            {% else %}
+              Stored locally. Star tokens anywhere to add them here.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <a class="tab {{ 'active' if active_tab == 'positions' else '' }}" href="/">🏠</a>
+        <a class="tab" href="/search">Search</a>
+        <a class="tab" href="/discover/trending">Trending</a>
+        <a class="tab" href="/discover/graduated">Newly graduated</a>
+        <a class="tab" href="/discover/verified">Verified</a>
+        <a class="tab {{ 'active' if active_tab == 'watchlist' else '' }}" href="/watchlist">Watchlist</a>
+      </div>
+
+      <div class="actionRow">
+        {% if active_tab == 'positions' %}
+          <button class="btn btnGhost" id="seedDemo" type="button">Add demo positions</button>
+          <button class="btn btnGhost" id="clearPositions" type="button">Clear</button>
+        {% else %}
+          <button class="btn btnGhost" id="clearWatch" type="button">Clear watchlist</button>
+        {% endif %}
+      </div>
+
+      <div id="emptyState" class="empty" style="display:none;">
+        <div class="emptyTitle">Nothing here yet</div>
+        <div class="emptySub" id="emptySub"></div>
+      </div>
+    </div>
+
+    <div id="cards" class="grid"></div>
+
+    <div class="footer">
+      Token Universe • Local state page (positions/watchlist)
+    </div>
+
+  </div>
+
+  <script>
+    const activeTab = "{{ active_tab }}";
+    const KEY_METRIC = "token_universe_metric";
+    const toggleBtn = document.getElementById("metricToggle");
+
+    function applyMetric(metric) {
+      const isMcap = metric === "mcap";
+      toggleBtn.textContent = "Metric: " + (isMcap ? "Market Cap" : "Price");
+
+      document.querySelectorAll(".metricBox").forEach((box) => {
+        const label = box.querySelector(".metricLabel");
+        const value = box.querySelector(".metricMain");
+        if (!label || !value) return;
+
+        if (isMcap) {
+          label.textContent = "Market Cap";
+          value.textContent = box.getAttribute("data-mcap") || "$?";
+        } else {
+          label.textContent = "Price";
+          value.textContent = box.getAttribute("data-price") || "$?";
+        }
+      });
+
+      localStorage.setItem(KEY_METRIC, metric);
+    }
+
+    const saved = localStorage.getItem(KEY_METRIC) || "mcap";
+    applyMetric(saved);
+    toggleBtn.addEventListener("click", () => {
+      const cur = localStorage.getItem(KEY_METRIC) || "mcap";
+      applyMetric(cur === "mcap" ? "price" : "mcap");
+    });
+
+    // Local storage keys
+    const KEY_POS = "token_universe_positions";
+    const KEY_WATCH = "token_universe_watchlist";
+
+    function loadJSON(key, fallback) {
+      try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+      catch { return fallback; }
+    }
+    function saveJSON(key, val) {
+      localStorage.setItem(key, JSON.stringify(val));
+    }
+
+    function getTokens() {
+      if (activeTab === "watchlist") return loadJSON(KEY_WATCH, []);
+      const positions = loadJSON(KEY_POS, []);
+      return positions.map(p => p.token).filter(Boolean);
+    }
+
+    function setEmpty(msg) {
+      document.getElementById("cards").innerHTML = "";
+      const es = document.getElementById("emptyState");
+      const sub = document.getElementById("emptySub");
+      sub.textContent = msg;
+      es.style.display = "block";
+    }
+
+    function rarityFromLiq(liq) {
+      const v = Number(liq || 0);
+      if (v >= 10000000) return "legendary";
+      if (v >= 1000000) return "epic";
+      if (v >= 100000) return "rare";
+      return "common";
+    }
+
+    function pctClass(x) {
+      const v = Number(x);
+      if (!isFinite(v)) return "flat";
+      if (v > 0.0001) return "pos";
+      if (v < -0.0001) return "neg";
+      return "flat";
+    }
+    function pctFmt(x) {
+      const v = Number(x);
+      if (!isFinite(v)) return "—";
+      const sign = v > 0 ? "+" : "";
+      return (Math.abs(v) < 10) ? `${sign}${v.toFixed(2)}%` : `${sign}${v.toFixed(1)}%`;
+    }
+
+    function compact(n) {
+      const v = Number(n);
+      if (!isFinite(v)) return "?";
+      const a = Math.abs(v);
+      if (a >= 1e9) return (v/1e9).toFixed(2).replace(/\.?0+$/,"") + "B";
+      if (a >= 1e6) return (v/1e6).toFixed(2).replace(/\.?0+$/,"") + "M";
+      if (a >= 1e3) return (v/1e3).toFixed(2).replace(/\.?0+$/,"") + "k";
+      if (a >= 1) return String(Math.trunc(v));
+      return v.toFixed(7).replace(/\.?0+$/,"");
+    }
+
+    function renderCard(p, idx) {
+      const img = (p.info && p.info.imageUrl) ? p.info.imageUrl : (p.baseToken && p.baseToken.address ? `/static/blank.png` : "");
+      const mcap = p.marketCap ?? p.fdv ?? 0;
+      const liq = (p.liquidity && p.liquidity.usd) ? p.liquidity.usd : 0;
+      const pc = p.priceChange || {};
+      const h1 = pc.h1, h6 = pc.h6, h24 = pc.h24;
+      const rarity = p._rarity || rarityFromLiq(liq);
+
+      // We can’t re-run server sparkline filter here; keep it simple:
+      // show only badges + click-through; server pages have the real sparkline.
+      const div = document.createElement("div");
+      div.className = `tile ${rarity}`;
+      div.setAttribute("data-href", `/coin/${p.baseToken.address}`);
+      div.innerHTML = `
+        <div class="tileTop">
+          <div class="rankPill">#${idx+1}</div>
+          <img class="tokenIconXL" src="${(p.info && p.info.imageUrl) ? p.info.imageUrl : ''}" onerror="this.src='${p.baseToken.address ? "" : ""}'" alt="${p.baseToken.symbol || ''}"/>
+          <div class="tileMeta">
+            <div class="symRow">
+              <div class="sym">${p.baseToken.symbol || "?"}</div>
+              <div class="pairMuted">/ ${(p.quoteToken && p.quoteToken.symbol) ? p.quoteToken.symbol : "?"}</div>
+            </div>
+            <div class="subRow">
+              <div class="dex">${p.dexId || ""}</div>
+              <div class="rarityPill ${rarity}">${rarity.charAt(0).toUpperCase()+rarity.slice(1)}</div>
+            </div>
+            <div class="badgeRow">
+              <span class="chgBadge ${pctClass(h1)}">1h ${pctFmt(h1)}</span>
+              <span class="chgBadge ${pctClass(h6)}">6h ${pctFmt(h6)}</span>
+              <span class="chgBadge ${pctClass(h24)}">24h ${pctFmt(h24)}</span>
+            </div>
+          </div>
+          <div class="tileMetric metricBox" data-price="$${compact(p.priceUsd)}" data-mcap="$${compact(mcap)}">
+            <div class="metricLabel">Market Cap</div>
+            <div class="metricMain">$${compact(mcap)}</div>
+            <div class="metricSub">Liq <b>$${compact(liq)}</b></div>
+          </div>
+        </div>
+      `;
+
+      div.addEventListener("click", () => {
+        const href = div.getAttribute("data-href");
+        if (href) window.location.href = href;
+      });
+
+      return div;
+    }
+
+    async function loadPairs() {
+      const tokens = getTokens();
+      if (!tokens.length) {
+        if (activeTab === "watchlist") {
+          setEmpty("Star tokens anywhere to add them to your Watchlist.");
+        } else {
+          setEmpty("No open positions yet. Once we add paper trades, your buys will show here.");
+        }
+        return;
+      }
+
+      document.getElementById("emptyState").style.display = "none";
+      const qs = tokens.map(t => "tokens=" + encodeURIComponent(t)).join("&");
+      const res = await fetch("/api/best_pairs?" + qs);
+      const pairs = await res.json();
+
+      const cards = document.getElementById("cards");
+      cards.innerHTML = "";
+      pairs.forEach((p, i) => cards.appendChild(renderCard(p, i)));
+
+      applyMetric(localStorage.getItem(KEY_METRIC) || "mcap");
+    }
+
+    // Buttons
+    const seedDemo = document.getElementById("seedDemo");
+    const clearPositions = document.getElementById("clearPositions");
+    const clearWatch = document.getElementById("clearWatch");
+
+    if (seedDemo) {
+      seedDemo.addEventListener("click", () => {
+        // Demo positions (you can replace these later)
+        const demo = [
+          { token: "So11111111111111111111111111111111111111112", qty: 1.25, entry: 1 },
+          { token: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", qty: 500000, entry: 0.00001 }
+        ];
+        saveJSON(KEY_POS, demo);
+        loadPairs();
+      });
+    }
+    if (clearPositions) {
+      clearPositions.addEventListener("click", () => {
+        saveJSON(KEY_POS, []);
+        loadPairs();
+      });
+    }
+    if (clearWatch) {
+      clearWatch.addEventListener("click", () => {
+        saveJSON(KEY_WATCH, []);
+        loadPairs();
+      });
+    }
+
+    loadPairs();
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ request.app.title }}</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+<header>
+    <h1>Token Universe</h1>
+</header>
+<main>
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>
