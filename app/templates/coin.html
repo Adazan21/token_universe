@@ -21,6 +21,7 @@
       <div class="topbarRight">
         <button class="btn btnGhost" id="metricToggle" type="button">Metric: Market Cap</button>
         <button class="btn btnGhost" id="densityToggle" type="button">Density: Comfortable</button>
+        <div class="walletBadge" id="walletBalance">Wallet: $10,000.00</div>
         <div class="badge"><span class="dot"></span>Live</div>
       </div>
     </div>
@@ -123,6 +124,54 @@
           </div>
         </div>
       </div>
+
+      <div class="panel tradePanel" id="coinTrade" data-mint="{{ pair.baseToken.address }}" data-price="{{ pair.priceUsd }}">
+        <div class="panelHead">
+          <div>
+            <div class="h2">Trade @ market price</div>
+            <div class="hint">Wallet-backed paper trades at the live price.</div>
+          </div>
+        </div>
+        <div class="tradeGrid">
+          <div class="tradeRow">
+            <span>Market price</span>
+            <strong data-trade="price">—</strong>
+          </div>
+          <div class="tradeRow">
+            <span>Wallet cash</span>
+            <strong data-trade="cash">$0.00</strong>
+          </div>
+          <div class="tradeRow">
+            <span>Holdings</span>
+            <strong data-trade="holdings">0</strong>
+          </div>
+          <div class="tradeInputs">
+            <input class="input" data-trade="usd" placeholder="USD amount" inputmode="decimal"/>
+            <input class="input" data-trade="qty" placeholder="Token qty" inputmode="decimal"/>
+          </div>
+          <div class="tradeActions">
+            <button class="btn btnPrimary" data-trade="buy" type="button">Buy @ Market</button>
+            <button class="btn btnGhost" data-trade="sell" type="button">Sell @ Market</button>
+          </div>
+          <div class="tradeHint" data-trade="hint"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panelHead">
+          <div>
+            <div class="h2">Live chart</div>
+            <div class="hint">Streaming price action from DexScreener.</div>
+          </div>
+        </div>
+        {% if pair.pairAddress %}
+          <div class="chartFrame" style="margin-top:12px;">
+            <iframe src="https://dexscreener.com/solana/{{ pair.pairAddress }}?embed=1&theme=dark&trades=0&info=0" loading="lazy"></iframe>
+          </div>
+        {% else %}
+          <div class="drawerEmpty" style="margin-top:12px;">Live chart unavailable.</div>
+        {% endif %}
+      </div>
     {% endif %}
 
     <div class="footer">Token Universe • Coin view</div>
@@ -131,8 +180,7 @@
   <script src="/static/state.js"></script>
   <script src="/static/ui.js"></script>
   <script>
-    TokenUniverseUI.initCommonUI();
-    TokenUniverseUI.applyMetricUI();
+    TokenUniverseUI.initCoinPage();
   </script>
 </body>
 </html>

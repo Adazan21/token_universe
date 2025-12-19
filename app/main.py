@@ -518,7 +518,7 @@ async def search_page(
 async def discover(
     request: Request,
     tab: str,
-    sort: str = "liq",
+    sort: str | None = None,
     min_liq: float = 0,
     min_vol: float = 0,
     max_age_h: float | None = None,
@@ -533,15 +533,16 @@ async def discover(
     pairs: list[dict] = []
     note: str | None = None
     quote_pref = [quote, "USDT", "SOL"] if quote else QUOTE_DEFAULT
+    sort_value = sort or ("age" if tab == "graduated" else "liq")
 
-    cache_key = f"disc:{tab}:{quote}:{sort}:{min_liq}:{min_vol}:{max_age_h}"
+    cache_key = f"disc:{tab}:{quote}:{sort_value}:{min_liq}:{min_vol}:{max_age_h}"
     cached = cache.get(cache_key)
     if cached is not None:
         pairs = cached
         return templates.TemplateResponse(
             "index.html",
             {"request": request, "pairs": pairs, "q": "", "active_tab": tab, "title": title, "note": note, "tabs": TABS,
-             "ui": {"sort": sort, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
+             "ui": {"sort": sort_value, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
         )
 
     if tab == "trending":
@@ -551,7 +552,7 @@ async def discover(
         sol = solana_pairs_only(raw_pairs)
         pairs = dedupe_best_pair_per_token(sol, quote_pref, limit=120)
         pairs = apply_filters(pairs, min_liq, min_vol, max_age_h)
-        pairs = apply_sort(pairs, sort)[:48]
+        pairs = apply_sort(pairs, sort_value)[:48]
 
     elif tab == "graduated":
         profiles = await fetch_latest_token_profiles()
@@ -561,7 +562,7 @@ async def discover(
         pairs = dedupe_best_pair_per_token(sol, quote_pref, limit=200)
         pairs = apply_filters(pairs, min_liq, min_vol, max_age_h)
         # default newest
-        pairs = apply_sort(pairs, sort or "age")[:36]
+        pairs = apply_sort(pairs, sort_value)[:36]
         note = "Newly graduated = newest pairs first (age-sorted unless you change sort)."
 
     elif tab == "verified":
@@ -570,7 +571,7 @@ async def discover(
         sol = solana_pairs_only(raw_pairs)
         pairs = dedupe_best_pair_per_token(sol, quote_pref, limit=80)
         pairs = apply_filters(pairs, min_liq, min_vol, max_age_h)
-        pairs = apply_sort(pairs, sort)[:36]
+        pairs = apply_sort(pairs, sort_value)[:36]
 
     pairs = await annotate_pairs_with_risk(pairs)
 
@@ -579,7 +580,7 @@ async def discover(
     return templates.TemplateResponse(
         "index.html",
         {"request": request, "pairs": pairs, "q": "", "active_tab": tab, "title": title, "note": note, "tabs": TABS,
-         "ui": {"sort": sort, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
+         "ui": {"sort": sort_value, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
     )
 
 @app.get("/watchlist", response_class=HTMLResponse)
