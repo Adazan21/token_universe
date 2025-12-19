@@ -175,6 +175,17 @@ window.TokenUniverseUI = (function () {
     applyMetricUI();
     initWatchButtons();
     initDrawer();
+
+    const drawer = qs("#drawer");
+    if (!drawer) {
+      qsa(".tile[data-href]").forEach((tile) => {
+        tile.addEventListener("click", (e) => {
+          if (e.target && e.target.classList && e.target.classList.contains("watchBtn")) return;
+          const href = tile.getAttribute("data-href");
+          if (href) window.location.href = href;
+        });
+      });
+    }
   }
 
   // Portfolio pages (positions/watchlist) are client-rendered
@@ -218,6 +229,13 @@ window.TokenUniverseUI = (function () {
     return v.toFixed(7).replace(/\.?0+$/,"");
   }
 
+  function formatQty(n) {
+    const v = Number(n);
+    if (!isFinite(v)) return "?";
+    if (Math.abs(v) >= 1) return compact(v);
+    return v.toFixed(6).replace(/\.?0+$/,"");
+  }
+
   function rarityFromLiq(liq) {
     const v = Number(liq || 0);
     if (v >= 10000000) return "legendary";
@@ -226,7 +244,7 @@ window.TokenUniverseUI = (function () {
     return "common";
   }
 
-  function renderClientCard(best, rank) {
+  function renderClientCard(best, rank, position) {
     const mint = best.baseToken.address;
     const img = (best.info && best.info.imageUrl) ? best.info.imageUrl : "";
     const mcap = best.marketCap || best.fdv || 0;
@@ -235,6 +253,7 @@ window.TokenUniverseUI = (function () {
     const pc = best.priceChange || {};
     const rarity = best._rarity || rarityFromLiq(liq);
     const verified = !!best._verified;
+    const priceUsd = Number(best.priceUsd || 0);
 
     // pre-format for drawer
     best._mcapFmt = compact(mcap);
@@ -245,7 +264,6 @@ window.TokenUniverseUI = (function () {
     div.className = `tile ${rarity}`;
     div.setAttribute("data-token", mint);
     div.innerHTML = `
-      <div class="rankPill">#${rank}</div>
       <div class="tileRow">
         <img class="tokenIconXL" src="${img}" alt="${best.baseToken.symbol || ""}"/>
         <div class="tileMeta">
@@ -268,6 +286,9 @@ window.TokenUniverseUI = (function () {
           <div class="metricLabel">Market Cap</div>
           <div class="metricMain">$${compact(mcap)}</div>
           <div class="metricSub">Liq <b>$${compact(liq)}</b> • Vol <b>$${compact(vol)}</b></div>
+          ${position ? `
+          <div class="metricSub positionSub">Holding <b>${formatQty(position.qty)}</b> @ <b>$${compact(position.entryPriceUsd)}</b> • Value <b>$${compact(position.qty * priceUsd)}</b></div>
+          ` : ``}
           <button class="watchBtn" type="button" title="Toggle watchlist">☆</button>
         </div>
       </div>
@@ -414,7 +435,7 @@ window.TokenUniverseUI = (function () {
 
       if (!tokens.length) {
         if (activeTab === "watchlist") setEmpty("Star tokens anywhere to add them to Watchlist.");
-        else setEmpty("No open positions yet. Buying UI comes next.");
+        else setEmpty("No open positions yet. Buy from any coin page to start tracking.");
         return;
       }
 
@@ -425,9 +446,12 @@ window.TokenUniverseUI = (function () {
       const res = await fetch("/api/best_pairs?" + qs);
       const bests = await res.json();
 
+      const positions = S.derivePositions();
+      const posMap = new Map(positions.map(p => [p.tokenMint, p]));
+
       // rank & render
       cards.innerHTML = "";
-      bests.forEach((b, i) => cards.appendChild(renderClientCard(b, i + 1)));
+      bests.forEach((b, i) => cards.appendChild(renderClientCard(b, i + 1, posMap.get(b.baseToken.address))));
 
       applyMetricUI();
     }
