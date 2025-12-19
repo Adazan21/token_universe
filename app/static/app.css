@@ -384,6 +384,46 @@ body.dense .tileRow{grid-template-columns: 62px 1fr 260px}
   gap:10px;
 }
 
+.coinGrid{
+  margin-top:14px;
+  display:grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap:12px;
+}
+.chartPanel .panelHead{align-items:center}
+.chartCanvasWrap{
+  margin-top:12px;
+  border-radius: 16px;
+  border:1px solid rgba(28,43,74,.85);
+  background: radial-gradient(120% 100% at 10% 0%, rgba(125,211,252,.12), transparent 55%),
+              radial-gradient(120% 100% at 90% 0%, rgba(167,139,250,.12), transparent 55%),
+              rgba(7,10,16,.35);
+  padding:10px;
+  height:240px;
+}
+#liveChart{width:100%; height:100%; display:block}
+.chartMeta{text-align:right}
+.priceLabel{display:block; font-size:11px; color:var(--muted2); font-weight:900}
+.priceValue{display:block; font-size:18px; font-weight:1200}
+.chartFoot{margin-top:10px; display:flex; justify-content:space-between; color:var(--muted2); font-size:11px}
+
+.walletPanel .panelHead{align-items:center}
+.walletHoldings{text-align:right}
+.walletLabel{font-size:11px; color:var(--muted2); font-weight:900}
+.walletValue{font-size:20px; font-weight:1200}
+.walletStats{margin-top:10px; display:grid; gap:8px}
+.walletStats .statRow{display:flex; justify-content:space-between; font-size:12px; color:var(--muted)}
+.walletStats .statRow span:last-child{font-weight:1200; color:var(--text)}
+.walletStats .good{color:var(--good)}
+.walletStats .bad{color:var(--bad)}
+.walletActions{margin-top:14px; display:grid; gap:10px}
+.walletInput label{display:block; font-size:11px; color:var(--muted2); font-weight:900; margin-bottom:6px}
+.walletButtons{display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px}
+.walletNote{font-size:12px; color:var(--muted); min-height:16px}
+.walletNote.good{color:var(--good)}
+.walletNote.bad{color:var(--bad)}
+.positionSub{margin-top:6px; color:var(--muted); font-size:11px}
+
 /* Drawer */
 .drawer{
   position:fixed;
@@ -461,4 +501,7 @@ body.dense .tileRow{grid-template-columns: 62px 1fr 260px}
   .drawer.open{right:0}
   .coinStats{grid-template-columns: repeat(2, minmax(0, 1fr));}
   .coinRight{min-width: 260px;}
+  .coinGrid{grid-template-columns: 1fr}
+  .chartCanvasWrap{height:220px}
+  .walletButtons{grid-template-columns: 1fr}
 }

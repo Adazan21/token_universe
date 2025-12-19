@@ -560,9 +560,8 @@ async def discover(
         sol = solana_pairs_only(raw_pairs)
         pairs = dedupe_best_pair_per_token(sol, quote_pref, limit=200)
         pairs = apply_filters(pairs, min_liq, min_vol, max_age_h)
-        # default newest
-        pairs = apply_sort(pairs, sort or "age")[:36]
-        note = "Newly graduated = newest pairs first (age-sorted unless you change sort)."
+        pairs = apply_sort(pairs, sort)[:36]
+        note = "Newly graduated tokens from the latest DexScreener profiles."
 
     elif tab == "verified":
         token_addrs = list(VERIFIED_TOKENS.values())

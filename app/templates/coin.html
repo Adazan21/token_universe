@@ -123,6 +123,57 @@
           </div>
         </div>
       </div>
+
+      <div class="coinGrid">
+        <div class="panel chartPanel">
+          <div class="panelHead">
+            <div>
+              <div class="h2">Live chart</div>
+              <div class="hint">Custom render powered by DexScreener pricing.</div>
+            </div>
+            <div class="chartMeta">
+              <span class="priceLabel">Market price</span>
+              <span class="priceValue" id="marketPrice">$—</span>
+            </div>
+          </div>
+          <div class="chartCanvasWrap">
+            <canvas id="liveChart" aria-label="Live token chart" role="img"></canvas>
+          </div>
+          <div class="chartFoot">
+            <span id="chartStatus">Waiting for price…</span>
+            <span id="chartWindow">Rolling window</span>
+          </div>
+        </div>
+
+        <div class="panel walletPanel">
+          <div class="panelHead">
+            <div>
+              <div class="h2">Wallet</div>
+              <div class="hint">Paper trades stored locally for this browser.</div>
+            </div>
+            <div class="walletHoldings">
+              <div class="walletLabel">Holdings</div>
+              <div class="walletValue" id="walletQty">0</div>
+            </div>
+          </div>
+          <div class="walletStats">
+            <div class="statRow"><span>Avg entry</span><span id="walletEntry">$—</span></div>
+            <div class="statRow"><span>Position value</span><span id="walletValue">$—</span></div>
+            <div class="statRow"><span>Unrealized PnL</span><span id="walletPnl">$—</span></div>
+          </div>
+          <div class="walletActions">
+            <div class="walletInput">
+              <label for="tradeQty">Quantity</label>
+              <input class="input" id="tradeQty" type="number" min="0" step="any" placeholder="0.0">
+            </div>
+            <div class="walletButtons">
+              <button class="btn btnPrimary" id="buyBtn" type="button">Buy @ market</button>
+              <button class="btn btnGhost" id="sellBtn" type="button">Sell @ market</button>
+            </div>
+            <div class="walletNote" id="tradeNote"></div>
+          </div>
+        </div>
+      </div>
     {% endif %}
 
     <div class="footer">Token Universe • Coin view</div>
@@ -133,6 +184,204 @@
   <script>
     TokenUniverseUI.initCommonUI();
     TokenUniverseUI.applyMetricUI();
+
+    const state = window.TokenUniverseState;
+    const mint = "{{ token_address }}";
+    let currentPrice = Number("{{ pair.priceUsd if pair else 0 }}") || 0;
+    let chartPoints = [];
+
+    const priceEl = document.getElementById("marketPrice");
+    const qtyEl = document.getElementById("walletQty");
+    const entryEl = document.getElementById("walletEntry");
+    const valueEl = document.getElementById("walletValue");
+    const pnlEl = document.getElementById("walletPnl");
+    const noteEl = document.getElementById("tradeNote");
+    const chartStatus = document.getElementById("chartStatus");
+    const chartWindow = document.getElementById("chartWindow");
+    const chart = document.getElementById("liveChart");
+    const ctx = chart ? chart.getContext("2d") : null;
+
+    if (chart) {
+
+    function formatUsd(n) {
+      const v = Number(n);
+      if (!isFinite(v)) return "$—";
+      if (Math.abs(v) >= 1) return `$${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      return `$${v.toFixed(6).replace(/\.?0+$/,"")}`;
+    }
+
+    function formatQty(n) {
+      const v = Number(n);
+      if (!isFinite(v)) return "—";
+      if (Math.abs(v) >= 1) return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      return v.toFixed(6).replace(/\.?0+$/,"");
+    }
+
+    function updateMarketPrice(price) {
+      if (!isFinite(price) || price <= 0) return;
+      currentPrice = price;
+      if (priceEl) priceEl.textContent = formatUsd(price);
+    }
+
+    function refreshPosition() {
+      const positions = state.derivePositions();
+      const pos = positions.find(p => p.tokenMint === mint);
+      if (!pos) {
+        qtyEl.textContent = "0";
+        entryEl.textContent = "$—";
+        valueEl.textContent = "$—";
+        pnlEl.textContent = "$—";
+        pnlEl.classList.remove("good", "bad");
+        return;
+      }
+      const value = pos.qty * currentPrice;
+      const pnl = (currentPrice - pos.entryPriceUsd) * pos.qty;
+      qtyEl.textContent = formatQty(pos.qty);
+      entryEl.textContent = formatUsd(pos.entryPriceUsd);
+      valueEl.textContent = formatUsd(value);
+      pnlEl.textContent = `${pnl >= 0 ? "+" : ""}${formatUsd(pnl)}`;
+      pnlEl.classList.toggle("good", pnl > 0.0001);
+      pnlEl.classList.toggle("bad", pnl < -0.0001);
+    }
+
+    function setNote(msg, tone) {
+      if (!noteEl) return;
+      noteEl.textContent = msg;
+      noteEl.classList.remove("good", "bad");
+      if (tone) noteEl.classList.add(tone);
+    }
+
+    function addPoint(price) {
+      const now = Date.now();
+      chartPoints.push({ t: now, price });
+      const windowMs = 30 * 60 * 1000;
+      chartPoints = chartPoints.filter(p => now - p.t <= windowMs);
+      if (chartWindow) chartWindow.textContent = `Last ${Math.round(windowMs / 60000)} mins`;
+      drawChart();
+    }
+
+    function resizeChart() {
+      if (!chart || !ctx) return;
+      const rect = chart.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      chart.width = rect.width * dpr;
+      chart.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawChart();
+    }
+
+    function drawChart() {
+      if (!chart || !ctx) return;
+      const width = chart.clientWidth;
+      const height = chart.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+      if (!chartPoints.length) return;
+
+      const prices = chartPoints.map(p => p.price);
+      let min = Math.min(...prices);
+      let max = Math.max(...prices);
+      if (Math.abs(max - min) < 1e-9) {
+        min *= 0.995;
+        max *= 1.005;
+      }
+      const pad = 18;
+      const span = chartPoints[chartPoints.length - 1].t - chartPoints[0].t || 1;
+
+      ctx.strokeStyle = "rgba(156,176,208,0.18)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i <= 4; i++) {
+        const y = pad + ((height - pad * 2) / 5) * i;
+        ctx.beginPath();
+        ctx.moveTo(pad, y);
+        ctx.lineTo(width - pad, y);
+        ctx.stroke();
+      }
+
+      const points = chartPoints.map((p) => {
+        const x = pad + ((p.t - chartPoints[0].t) / span) * (width - pad * 2);
+        const y = pad + (1 - (p.price - min) / (max - min)) * (height - pad * 2);
+        return { x, y };
+      });
+
+      const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
+      gradient.addColorStop(0, "rgba(125,211,252,0.35)");
+      gradient.addColorStop(1, "rgba(125,211,252,0)");
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, height - pad);
+      points.forEach(pt => ctx.lineTo(pt.x, pt.y));
+      ctx.lineTo(points[points.length - 1].x, height - pad);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      ctx.beginPath();
+      points.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.strokeStyle = "rgba(125,211,252,0.95)";
+      ctx.lineWidth = 2.4;
+      ctx.shadowColor = "rgba(125,211,252,0.4)";
+      ctx.shadowBlur = 10;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const last = points[points.length - 1];
+      ctx.beginPath();
+      ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#7DD3FC";
+      ctx.fill();
+    }
+
+    async function refreshMarket() {
+      try {
+        const res = await fetch(`/api/token/${encodeURIComponent(mint)}`);
+        const data = await res.json();
+        const price = Number(data.best ? data.best.priceUsd : 0) || 0;
+        updateMarketPrice(price);
+        addPoint(price);
+        refreshPosition();
+        if (chartStatus) chartStatus.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        if (chartStatus) chartStatus.textContent = "Price update failed";
+      }
+    }
+
+    function handleTrade(side) {
+      const qtyInput = document.getElementById("tradeQty");
+      const qty = Number(qtyInput ? qtyInput.value : 0);
+      if (!isFinite(qty) || qty <= 0) {
+        setNote("Enter a valid quantity.", "bad");
+        return;
+      }
+      if (!currentPrice) {
+        setNote("Price unavailable. Try again in a moment.", "bad");
+        return;
+      }
+      const pos = state.derivePositions().find(p => p.tokenMint === mint);
+      if (side === "SELL" && (!pos || qty > pos.qty)) {
+        setNote("Not enough balance to sell.", "bad");
+        return;
+      }
+      state.addTrade({ tokenMint: mint, side, qty, priceUsd: currentPrice });
+      if (qtyInput) qtyInput.value = "";
+      refreshPosition();
+      setNote(`${side === "BUY" ? "Bought" : "Sold"} ${formatQty(qty)} at ${formatUsd(currentPrice)}.`, "good");
+    }
+
+    updateMarketPrice(currentPrice);
+    if (currentPrice) addPoint(currentPrice);
+    refreshPosition();
+    resizeChart();
+    window.addEventListener("resize", resizeChart);
+    refreshMarket();
+    setInterval(refreshMarket, 15000);
+
+    const buyBtn = document.getElementById("buyBtn");
+    const sellBtn = document.getElementById("sellBtn");
+    if (buyBtn) buyBtn.addEventListener("click", () => handleTrade("BUY"));
+    if (sellBtn) sellBtn.addEventListener("click", () => handleTrade("SELL"));
+    }
   </script>
 </body>
 </html>
