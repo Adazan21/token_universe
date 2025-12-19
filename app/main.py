@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,6 +15,7 @@ from app.services.dexscreener import (
     solana_pairs_only,
     pick_best_pair_by_liquidity_usd,
 )
+from app.services.token_security import fetch_mint_security
 
 from app.services.dexscreener_discovery import (
     fetch_latest_token_profiles,
@@ -21,6 +23,7 @@ from app.services.dexscreener_discovery import (
     fetch_pairs_for_tokens,
 )
 
+from app.services.risk import compute_risk
 from app.services.ttl_cache import cache
 
 app = FastAPI()
@@ -263,6 +266,92 @@ def _h24(p: dict) -> float:
     except Exception:
         return 0.0
 
+
+def _txns_sum(p: dict) -> float:
+    try:
+        t = (p.get("txns") or {}).get("h24") or {}
+        return float((t.get("buys") or 0) + (t.get("sells") or 0))
+    except Exception:
+        return 0.0
+
+
+def _liq_locked(p: dict) -> bool | None:
+    liq = p.get("liquidity") or {}
+    if not isinstance(liq, dict):
+        return None
+    if "locked" in liq:
+        return bool(liq.get("locked"))
+    if "isLocked" in liq:
+        return bool(liq.get("isLocked"))
+    status = liq.get("lockStatus") or liq.get("status")
+    if isinstance(status, str):
+        s = status.lower()
+        if s in ("locked", "lockedliquidity", "locked_liquidity"):
+            return True
+        if s in ("unlocked", "notlocked"):
+            return False
+    return None
+
+
+async def _security_map(base_mints: list[str]) -> dict[str, dict]:
+    unique: list[str] = []
+    seen = set()
+    for m in base_mints:
+        if not m or m in seen:
+            continue
+        seen.add(m)
+        unique.append(m)
+    results = await asyncio.gather(*(fetch_mint_security(m) for m in unique))
+    return {m: r for m, r in zip(unique, results)}
+
+
+async def annotate_pairs_with_risk(pairs: list[dict]) -> list[dict]:
+    if not pairs:
+        return []
+
+    base_mints = [(p.get("baseToken") or {}).get("address") for p in pairs]
+    sec_map = await _security_map(base_mints)
+
+    enriched: list[dict] = []
+    for p in pairs:
+        base = (p.get("baseToken") or {}).get("address")
+        sec = sec_map.get(base, {})
+
+        is_mintable = bool(sec.get("is_mintable"))
+        is_freezable = bool(sec.get("is_freezable"))
+        liq_locked = _liq_locked(p)
+
+        # Blacklist mintable or freezable tokens
+        if is_mintable or is_freezable:
+            continue
+
+        p["_isMintable"] = is_mintable
+        p["_isFreezable"] = is_freezable
+        p["_liquidityLocked"] = liq_locked
+        p["_mintAuthority"] = sec.get("mintAuthority")
+        p["_freezeAuthority"] = sec.get("freezeAuthority")
+
+        risk_input = {
+            "liquidityUsd": _liq_usd(p),
+            "volume24h": _vol24(p),
+            "txns24h": _txns_sum(p),
+            "pairCreatedAt": _age_ms(p),
+            "priceChange24h": (p.get("priceChange") or {}).get("h24"),
+        }
+        risk_score, risk_label = compute_risk(
+            risk_input,
+            is_verified=p.get("_verified", False),
+            is_mintable=is_mintable,
+            is_freezable=is_freezable,
+            liq_locked=liq_locked,
+        )
+        p["_riskScore"] = risk_score
+        p["_riskLabel"] = risk_label
+        p["_riskClass"] = risk_label.lower()
+        enriched.append(p)
+
+    return enriched
+
 def rarity_from_liq(liq_usd: float) -> str:
     if liq_usd >= 10_000_000: return "legendary"
     if liq_usd >= 1_000_000:  return "epic"
@@ -396,6 +485,7 @@ async def search_page(
             best = dedupe_best_pair_per_token(sol_pairs, quote_pref, limit=80)
             best = apply_filters(best, min_liq, min_vol, max_age_h)
             best = apply_sort(best, sort)[:36]
+            best = await annotate_pairs_with_risk(best)
             cache.set(cache_key, best, CACHE_TTL_SEARCH)
             pairs = best
         else:
@@ -482,6 +572,8 @@ async def discover(
         pairs = apply_filters(pairs, min_liq, min_vol, max_age_h)
         pairs = apply_sort(pairs, sort)[:36]
 
+    pairs = await annotate_pairs_with_risk(pairs)
+
     cache.set(cache_key, pairs, CACHE_TTL_LIST)
 
     return templates.TemplateResponse(
@@ -504,10 +596,11 @@ async def coin_detail(request: Request, token_address: str):
     if cached is None:
         token_pairs = await fetch_token_pairs(token_address)
         sol_pairs = solana_pairs_only(token_pairs)
-        best = pick_best_pair_by_liquidity_usd(sol_pairs)
         sol_pairs = [decorate_pair(p) for p in sol_pairs]
+        sol_pairs = await annotate_pairs_with_risk(sol_pairs)
+        best = pick_best_pair_by_liquidity_usd(sol_pairs)
         sol_pairs.sort(key=_liq_usd, reverse=True)
-        payload = {"pair": decorate_pair(best) if best else None, "all_pairs": sol_pairs[:25]}
+        payload = {"pair": best, "all_pairs": sol_pairs[:25]}
         cache.set(cache_key, payload, CACHE_TTL_TOKEN)
     else:
         payload = cached
@@ -530,8 +623,9 @@ async def api_best_pairs(tokens: list[str] = Query(default=[])):
         if cached is None:
             token_pairs = await fetch_token_pairs(addr)
             sol_pairs = solana_pairs_only(token_pairs)
+            sol_pairs = [decorate_pair(p) for p in sol_pairs]
+            sol_pairs = await annotate_pairs_with_risk(sol_pairs)
             best = pick_best_pair_by_liquidity_usd(sol_pairs)
-            best = decorate_pair(best) if best else None
             cache.set(cache_key, best, CACHE_TTL_TOKEN)
             if best:
                 out.append(best)
@@ -551,10 +645,11 @@ async def api_token(token_address: str):
 
     token_pairs = await fetch_token_pairs(token_address)
     sol_pairs = solana_pairs_only(token_pairs)
-    best = pick_best_pair_by_liquidity_usd(sol_pairs)
     sol_pairs = [decorate_pair(p) for p in sol_pairs]
+    sol_pairs = await annotate_pairs_with_risk(sol_pairs)
+    best = pick_best_pair_by_liquidity_usd(sol_pairs)
     sol_pairs.sort(key=_liq_usd, reverse=True)
 
-    data = {"best": decorate_pair(best) if best else None, "pairs": sol_pairs[:12]}
+    data = {"best": best, "pairs": sol_pairs[:12]}
     cache.set(cache_key, data, CACHE_TTL_TOKEN)
     return data

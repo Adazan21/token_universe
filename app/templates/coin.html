@@ -50,6 +50,8 @@
       {% set h24 = pc.get('h24') %}
       {% set rarity = (pair._rarity if pair._rarity else 'common') %}
       {% set verified = (pair._verified if pair._verified else false) %}
+      {% set risk_label = (pair._riskLabel if pair._riskLabel else 'Unknown') %}
+      {% set risk_class = (pair._riskClass if pair._riskClass else 'medium') %}
 
       <div class="coinCard {{ rarity }}">
         <div class="coinTop">
@@ -68,12 +70,16 @@
                 <span class="dex">{{ pair.dexId }}</span>
                 <span class="agePill bigAge">Age <b>{{ pair.pairCreatedAt | age }}</b></span>
                 <span class="rarityPill {{ rarity }}">{{ rarity|capitalize }}</span>
+                <span class="riskBadge {{ risk_class }}">Risk: {{ risk_label }}</span>
               </div>
 
               <div class="badgeRow">
                 <span class="chgBadge {{ h1 | pctclass }}">1h {{ h1 | pct }}</span>
                 <span class="chgBadge {{ h6 | pctclass }}">6h {{ h6 | pct }}</span>
                 <span class="chgBadge {{ h24 | pctclass }}">24h {{ h24 | pct }}</span>
+                {% if pair._liquidityLocked is not none and not pair._liquidityLocked %}
+                  <span class="warnBadge">⚠️ Liquidity unlocked</span>
+                {% endif %}
               </div>
             </div>
           </div>

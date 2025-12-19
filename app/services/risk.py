@@ -23,7 +23,13 @@ def _int(x, default=0):
         return default
 
 
-def compute_risk(pair: Dict, is_verified: bool = False) -> Tuple[int, str]:
+def compute_risk(
+    pair: Dict,
+    is_verified: bool = False,
+    is_mintable: bool = False,
+    is_freezable: bool = False,
+    liq_locked: Optional[bool] = None,
+) -> Tuple[int, str]:
     """
     Simple, explainable MVP heuristic (0 = lowest risk, 100 = highest risk).
     Inputs are DexScreener-normalized fields.
@@ -85,6 +91,16 @@ def compute_risk(pair: Dict, is_verified: bool = False) -> Tuple[int, str]:
     # verified allowlist lowers risk
     if is_verified:
         score -= 15
+
+    # contract controls
+    if is_mintable:
+        score += 25  # mint authority present => high risk of supply changes
+    if is_freezable:
+        score += 15  # freeze authority present => custody risk
+    if liq_locked is False:
+        score += 15  # explicitly unlocked liquidity
+    elif liq_locked is True:
+        score -= 5   # explicit lock provides modest reassurance
 
     score = max(0, min(100, int(round(score))))
 

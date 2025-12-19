@@ -9,6 +9,7 @@
 
   --accent:#7DD3FC;
   --accent2:#A78BFA;
+  --warn:#FCD34D;
 
   --good:#34D399;
   --bad:#FB7185;
@@ -235,6 +236,32 @@ body.dense .tileRow{grid-template-columns: 62px 1fr 260px}
   white-space:nowrap;
 }
 .verifiedBadge.big{padding:7px 12px;font-size:13px}
+.riskBadge{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(28,43,74,.9);
+  background: rgba(7,10,16,.35);
+  font-weight:1100;
+  font-size:12px;
+  color: var(--muted);
+}
+.riskBadge.low{color: var(--good); border-color: rgba(52,211,153,.25); background: rgba(52,211,153,.08)}
+.riskBadge.medium{color: var(--accent2); border-color: rgba(167,139,250,.25); background: rgba(167,139,250,.08)}
+.riskBadge.high{color: var(--warn); border-color: rgba(252,211,77,.25); background: rgba(252,211,77,.10)}
+.riskBadge.extreme{color: var(--bad); border-color: rgba(251,113,133,.25); background: rgba(251,113,133,.08)}
+.warnBadge{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(252,211,77,.35);
+  background: rgba(252,211,77,.10);
+  color: var(--warn);
+  font-weight:1100;
+  font-size:12px;
+}
 
 .subRow{margin-top:6px; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
 .dex{color:var(--muted2); font-size:12px; font-weight:900}

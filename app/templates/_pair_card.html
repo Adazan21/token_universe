@@ -6,6 +6,8 @@
 {% set h24 = pc.get('h24') %}
 {% set rarity = (p._rarity if p._rarity else 'common') %}
 {% set verified = (p._verified if p._verified else false) %}
+{% set risk_label = (p._riskLabel if p._riskLabel else 'Unknown') %}
+{% set risk_class = (p._riskClass if p._riskClass else 'medium') %}
 
 <div class="tile {{ rarity }}" data-token="{{ p.baseToken.address }}" data-href="/coin/{{ p.baseToken.address }}">
   <div class="rankPill">#{{ rank }}</div>
@@ -26,12 +28,16 @@
         <div class="dex">{{ p.dexId }}</div>
         <div class="agePill">Age <b>{{ p.pairCreatedAt | age }}</b></div>
         <div class="rarityPill {{ rarity }}">{{ rarity|capitalize }}</div>
+        <div class="riskBadge {{ risk_class }}">Risk: {{ risk_label }}</div>
       </div>
 
       <div class="badgeRow">
         <span class="chgBadge {{ h1 | pctclass }}">1h {{ h1 | pct }}</span>
         <span class="chgBadge {{ h6 | pctclass }}">6h {{ h6 | pct }}</span>
         <span class="chgBadge {{ h24 | pctclass }}">24h {{ h24 | pct }}</span>
+        {% if p._liquidityLocked is not none and not p._liquidityLocked %}
+          <span class="warnBadge">⚠️ Liquidity unlocked</span>
+        {% endif %}
       </div>
     </div>
 
