@@ -10,7 +10,7 @@
 {% set risk_class = (p._riskClass if p._riskClass else 'medium') %}
 
 <div class="tile {{ rarity }}" data-token="{{ p.baseToken.address }}" data-href="/coin/{{ p.baseToken.address }}">
-  <div class="rankPill">#{{ rank }}</div>
+  <div class="rankPill">{{ rank }}</div>
 
   <div class="tileRow">
     <img class="tokenIconXL" src="{{ img }}" alt="{{ p.baseToken.symbol }}"/>

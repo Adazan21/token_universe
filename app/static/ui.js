@@ -4,6 +4,17 @@ window.TokenUniverseUI = (function () {
   function qs(name) { return document.querySelector(name); }
   function qsa(name) { return Array.from(document.querySelectorAll(name)); }
 
+  function formatUsd(value, digits = 2) {
+    const v = Number(value || 0);
+    return v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+
+  function updateWalletUI() {
+    const wallet = S.getWallet();
+    const el = qs("#walletBalance");
+    if (el) el.textContent = `Wallet: $${formatUsd(wallet.cashUsd, 2)}`;
+  }
+
   function initCommonUI() {
     S.migrateIfNeeded();
     const prefs = S.getPrefs();
@@ -35,6 +46,8 @@ window.TokenUniverseUI = (function () {
         applyMetricUI();
       });
     }
+
+    updateWalletUI();
   }
 
   function applyMetricUI() {
@@ -84,6 +97,16 @@ window.TokenUniverseUI = (function () {
 
     const closeBtn = qs("#drawerClose");
     const body = qs("#drawerBody");
+    const chart = qs("#drawerChart");
+    const tradePanel = qs("#drawerTrade");
+    const tradePrice = qs("#drawerPrice");
+    const tradeCash = qs("#drawerCash");
+    const tradeHoldings = qs("#drawerHoldings");
+    const tradeUsd = qs("#drawerUsd");
+    const tradeQty = qs("#drawerQty");
+    const tradeHint = qs("#drawerHint");
+    const buyBtn = qs("#drawerBuy");
+    const sellBtn = qs("#drawerSell");
     const title = qs("#drawerTitle");
     const watchBtn = qs("#drawerWatch");
     const copyBtn = qs("#drawerCopy");
@@ -95,6 +118,8 @@ window.TokenUniverseUI = (function () {
 
     async function loadToken(mint) {
       body.innerHTML = `<div class="drawerSkeleton"></div><div class="drawerSkeleton"></div><div class="drawerSkeleton"></div>`;
+      if (chart) chart.innerHTML = `<div class="drawerSkeleton"></div>`;
+      if (tradePanel) tradePanel.setAttribute("data-mint", mint);
       openDrawer();
 
       const res = await fetch(`/api/token/${encodeURIComponent(mint)}`);
@@ -119,6 +144,35 @@ window.TokenUniverseUI = (function () {
         </div>
         <div class="drawerSub">Best pair: ${best ? (best.dexId + " • " + best.quoteToken.symbol) : "—"}</div>
       `;
+
+      if (chart) {
+        if (best && best.pairAddress) {
+          chart.innerHTML = `
+            <div class="drawerSectionTitle">Live chart</div>
+            <div class="chartFrame">
+              <iframe src="https://dexscreener.com/solana/${best.pairAddress}?embed=1&theme=dark&trades=0&info=0" loading="lazy"></iframe>
+            </div>
+          `;
+        } else {
+          chart.innerHTML = `<div class="drawerEmpty">Live chart unavailable.</div>`;
+        }
+      }
+
+      if (tradePanel) {
+        const price = Number(best ? best.priceUsd : 0);
+        bindTradePanel({
+          mint,
+          priceUsd: price,
+          priceEl: tradePrice,
+          cashEl: tradeCash,
+          holdingEl: tradeHoldings,
+          usdInput: tradeUsd,
+          qtyInput: tradeQty,
+          hintEl: tradeHint,
+          buyBtn,
+          sellBtn
+        });
+      }
 
       // actions
       if (openLink) openLink.href = `/coin/${mint}`;
@@ -156,7 +210,11 @@ window.TokenUniverseUI = (function () {
     qsa(".tile[data-token]").forEach((tile) => {
       const mint = tile.getAttribute("data-token");
       tile.addEventListener("click", (e) => {
-        if (e.shiftKey) return; // allow normal nav if they want it
+        if (e.shiftKey) {
+          const href = tile.getAttribute("data-href");
+          if (href) window.location.href = href;
+          return;
+        }
         if (e.target && e.target.classList && e.target.classList.contains("watchBtn")) return;
         e.preventDefault();
         loadToken(mint);
@@ -245,7 +303,7 @@ window.TokenUniverseUI = (function () {
     div.className = `tile ${rarity}`;
     div.setAttribute("data-token", mint);
     div.innerHTML = `
-      <div class="rankPill">#${rank}</div>
+      <div class="rankPill">${rank}</div>
       <div class="tileRow">
         <img class="tokenIconXL" src="${img}" alt="${best.baseToken.symbol || ""}"/>
         <div class="tileMeta">
@@ -350,6 +408,36 @@ window.TokenUniverseUI = (function () {
       <div class="drawerSub">Best pair: ${best.dexId} • ${best.quoteToken.symbol}</div>
     `;
 
+    const chart = qs("#drawerChart");
+    if (chart) {
+      if (best && best.pairAddress) {
+        chart.innerHTML = `
+          <div class="drawerSectionTitle">Live chart</div>
+          <div class="chartFrame">
+            <iframe src="https://dexscreener.com/solana/${best.pairAddress}?embed=1&theme=dark&trades=0&info=0" loading="lazy"></iframe>
+          </div>
+        `;
+      } else {
+        chart.innerHTML = `<div class="drawerEmpty">Live chart unavailable.</div>`;
+      }
+    }
+
+    const tradePanel = qs("#drawerTrade");
+    if (tradePanel) {
+      bindTradePanel({
+        mint,
+        priceUsd: Number(best.priceUsd || 0),
+        priceEl: qs("#drawerPrice"),
+        cashEl: qs("#drawerCash"),
+        holdingEl: qs("#drawerHoldings"),
+        usdInput: qs("#drawerUsd"),
+        qtyInput: qs("#drawerQty"),
+        hintEl: qs("#drawerHint"),
+        buyBtn: qs("#drawerBuy"),
+        sellBtn: qs("#drawerSell")
+      });
+    }
+
     if (openLink) openLink.href = `/coin/${mint}`;
     watchBtn.textContent = S.isWatched(mint) ? "★ Watched" : "☆ Watch";
     watchBtn.onclick = () => {
@@ -364,6 +452,95 @@ window.TokenUniverseUI = (function () {
 
     const closeBtn = qs("#drawerClose");
     if (closeBtn) closeBtn.onclick = () => drawer.classList.remove("open");
+  }
+
+  function bindTradePanel({ mint, priceUsd, priceEl, cashEl, holdingEl, usdInput, qtyInput, hintEl, buyBtn, sellBtn }) {
+    if (!mint || !usdInput || !qtyInput || !buyBtn || !sellBtn) return;
+    const price = Number(priceUsd || 0);
+    if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
+    if (hintEl) {
+      hintEl.textContent = "";
+      hintEl.classList.remove("error");
+    }
+    usdInput.value = "";
+    qtyInput.value = "";
+
+    function refreshBalances() {
+      const wallet = S.getWallet();
+      const holding = S.derivePositions().find(p => p.tokenMint === mint);
+      if (cashEl) cashEl.textContent = `$${formatUsd(wallet.cashUsd, 2)}`;
+      if (holdingEl) holdingEl.textContent = holding ? `${formatUsd(holding.qty, 6)}` : "0";
+      updateWalletUI();
+    }
+
+    function syncFromUsd() {
+      const usd = Number(usdInput.value || 0);
+      if (!price || !usd) { qtyInput.value = ""; return; }
+      qtyInput.value = (usd / price).toFixed(6).replace(/\.?0+$/,"");
+    }
+
+    function syncFromQty() {
+      const qty = Number(qtyInput.value || 0);
+      if (!price || !qty) { usdInput.value = ""; return; }
+      usdInput.value = (qty * price).toFixed(2);
+    }
+
+    usdInput.oninput = () => syncFromUsd();
+    qtyInput.oninput = () => syncFromQty();
+
+    function runTrade(side) {
+      const qty = Number(qtyInput.value || 0);
+      if (!price || !qty) {
+        if (hintEl) {
+          hintEl.textContent = "Enter a trade amount.";
+          hintEl.classList.add("error");
+        }
+        return;
+      }
+      const res = S.executeTrade({ tokenMint: mint, side, qty, priceUsd: price });
+      if (!res.ok) {
+        if (hintEl) {
+          hintEl.textContent = res.error || "Trade failed.";
+          hintEl.classList.add("error");
+        }
+        return;
+      }
+      if (hintEl) {
+        hintEl.textContent = `${side} filled at $${formatUsd(price, 6)}.`;
+        hintEl.classList.remove("error");
+      }
+      usdInput.value = "";
+      qtyInput.value = "";
+      refreshBalances();
+      initWatchButtons();
+    }
+
+    buyBtn.onclick = () => runTrade("BUY");
+    sellBtn.onclick = () => runTrade("SELL");
+    refreshBalances();
+  }
+
+  function initCoinPage() {
+    initCommonUI();
+    applyMetricUI();
+
+    const tradePanel = qs("#coinTrade");
+    if (tradePanel) {
+      const mint = tradePanel.getAttribute("data-mint");
+      const price = Number(tradePanel.getAttribute("data-price") || 0);
+      bindTradePanel({
+        mint,
+        priceUsd: price,
+        priceEl: tradePanel.querySelector("[data-trade='price']"),
+        cashEl: tradePanel.querySelector("[data-trade='cash']"),
+        holdingEl: tradePanel.querySelector("[data-trade='holdings']"),
+        usdInput: tradePanel.querySelector("[data-trade='usd']"),
+        qtyInput: tradePanel.querySelector("[data-trade='qty']"),
+        hintEl: tradePanel.querySelector("[data-trade='hint']"),
+        buyBtn: tradePanel.querySelector("[data-trade='buy']"),
+        sellBtn: tradePanel.querySelector("[data-trade='sell']")
+      });
+    }
   }
 
   async function initPortfolioPage({ activeTab }) {
@@ -392,8 +569,8 @@ window.TokenUniverseUI = (function () {
 
       if (seedDemo) seedDemo.addEventListener("click", () => {
         // Seed demo buys
-        S.addTrade({ tokenMint: "So11111111111111111111111111111111111111112", side: "BUY", qty: 1.2, priceUsd: 200 });
-        S.addTrade({ tokenMint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", side: "BUY", qty: 800000, priceUsd: 0.00001 });
+        S.executeTrade({ tokenMint: "So11111111111111111111111111111111111111112", side: "BUY", qty: 1.2, priceUsd: 200 });
+        S.executeTrade({ tokenMint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", side: "BUY", qty: 800000, priceUsd: 0.00001 });
         load();
       });
 
@@ -439,6 +616,7 @@ window.TokenUniverseUI = (function () {
     initCommonUI,
     applyMetricUI,
     initListPage,
-    initPortfolioPage
+    initPortfolioPage,
+    initCoinPage
   };
 })();
