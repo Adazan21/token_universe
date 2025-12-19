@@ -533,15 +533,18 @@ async def discover(
     pairs: list[dict] = []
     note: str | None = None
     quote_pref = [quote, "USDT", "SOL"] if quote else QUOTE_DEFAULT
+    effective_sort = sort
+    if tab == "graduated" and "sort" not in request.query_params:
+        effective_sort = "age"
 
-    cache_key = f"disc:{tab}:{quote}:{sort}:{min_liq}:{min_vol}:{max_age_h}"
+    cache_key = f"disc:{tab}:{quote}:{effective_sort}:{min_liq}:{min_vol}:{max_age_h}"
     cached = cache.get(cache_key)
     if cached is not None:
         pairs = cached
         return templates.TemplateResponse(
             "index.html",
             {"request": request, "pairs": pairs, "q": "", "active_tab": tab, "title": title, "note": note, "tabs": TABS,
-             "ui": {"sort": sort, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
+             "ui": {"sort": effective_sort, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
         )
 
     if tab == "trending":
@@ -560,9 +563,8 @@ async def discover(
         sol = solana_pairs_only(raw_pairs)
         pairs = dedupe_best_pair_per_token(sol, quote_pref, limit=200)
         pairs = apply_filters(pairs, min_liq, min_vol, max_age_h)
-        # default newest
-        pairs = apply_sort(pairs, sort or "age")[:36]
-        note = "Newly graduated = newest pairs first (age-sorted unless you change sort)."
+        pairs = apply_sort(pairs, effective_sort)[:36]
+        note = "Newly graduated tokens from the latest DexScreener profiles."
 
     elif tab == "verified":
         token_addrs = list(VERIFIED_TOKENS.values())
@@ -570,7 +572,7 @@ async def discover(
         sol = solana_pairs_only(raw_pairs)
         pairs = dedupe_best_pair_per_token(sol, quote_pref, limit=80)
         pairs = apply_filters(pairs, min_liq, min_vol, max_age_h)
-        pairs = apply_sort(pairs, sort)[:36]
+        pairs = apply_sort(pairs, effective_sort)[:36]
 
     pairs = await annotate_pairs_with_risk(pairs)
 
@@ -579,7 +581,7 @@ async def discover(
     return templates.TemplateResponse(
         "index.html",
         {"request": request, "pairs": pairs, "q": "", "active_tab": tab, "title": title, "note": note, "tabs": TABS,
-         "ui": {"sort": sort, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
+         "ui": {"sort": effective_sort, "min_liq": min_liq, "min_vol": min_vol, "max_age_h": max_age_h, "quote": quote, "density": density}},
     )
 
 @app.get("/watchlist", response_class=HTMLResponse)

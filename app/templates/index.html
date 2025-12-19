@@ -76,8 +76,6 @@
 
         <div class="tile {{ rarity }}" data-href="/coin/{{ p.baseToken.address }}" data-token="{{ p.baseToken.address }}">
           <div class="tileTop">
-            <div class="rankPill">#{{ loop.index }}</div>
-
             <img class="tokenIconXL" src="{{ img }}" alt="{{ p.baseToken.symbol }}"/>
 
             <div class="tileMeta">
@@ -145,88 +143,10 @@
 
   </div>
 
+  <script src="/static/state.js"></script>
+  <script src="/static/ui.js"></script>
   <script>
-    // Card click navigation
-    document.querySelectorAll(".tile[data-href]").forEach((t) => {
-      t.addEventListener("click", (e) => {
-        // if user clicked the watch button, ignore (handled elsewhere)
-        if (e.target && e.target.classList && e.target.classList.contains("watchBtn")) return;
-        const href = t.getAttribute("data-href");
-        if (href) window.location.href = href;
-      });
-    });
-
-    // Metric toggle (Market Cap <-> Price)
-    const KEY_METRIC = "token_universe_metric";
-    const toggleBtn = document.getElementById("metricToggle");
-
-    function applyMetric(metric) {
-      const isMcap = metric === "mcap";
-      toggleBtn.textContent = "Metric: " + (isMcap ? "Market Cap" : "Price");
-
-      document.querySelectorAll(".metricBox").forEach((box) => {
-        const label = box.querySelector(".metricLabel");
-        const value = box.querySelector(".metricMain");
-        if (!label || !value) return;
-
-        if (isMcap) {
-          label.textContent = "Market Cap";
-          value.textContent = box.getAttribute("data-mcap") || "$?";
-        } else {
-          label.textContent = "Price";
-          value.textContent = box.getAttribute("data-price") || "$?";
-        }
-      });
-
-      localStorage.setItem(KEY_METRIC, metric);
-    }
-
-    const saved = localStorage.getItem(KEY_METRIC) || "mcap";
-    applyMetric(saved);
-
-    toggleBtn.addEventListener("click", () => {
-      const cur = localStorage.getItem(KEY_METRIC) || "mcap";
-      applyMetric(cur === "mcap" ? "price" : "mcap");
-    });
-
-    // Watchlist
-    const KEY_WATCH = "token_universe_watchlist";
-
-    function loadWatch() {
-      try { return JSON.parse(localStorage.getItem(KEY_WATCH) || "[]"); }
-      catch { return []; }
-    }
-    function saveWatch(arr) {
-      localStorage.setItem(KEY_WATCH, JSON.stringify(arr));
-    }
-    function isWatched(addr) {
-      return loadWatch().includes(addr);
-    }
-    function setWatchedUI(tile, watched) {
-      const btn = tile.querySelector(".watchBtn");
-      if (!btn) return;
-      btn.textContent = watched ? "★" : "☆";
-      tile.classList.toggle("watched", watched);
-      btn.classList.toggle("on", watched);
-    }
-
-    document.querySelectorAll(".tile[data-token]").forEach((tile) => {
-      const addr = tile.getAttribute("data-token");
-      setWatchedUI(tile, isWatched(addr));
-
-      const btn = tile.querySelector(".watchBtn");
-      if (!btn) return;
-
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const cur = loadWatch();
-        const idx = cur.indexOf(addr);
-        if (idx >= 0) cur.splice(idx, 1);
-        else cur.push(addr);
-        saveWatch(cur);
-        setWatchedUI(tile, idx < 0);
-      });
-    });
+    TokenUniverseUI.initListPage();
   </script>
 </body>
 </html>

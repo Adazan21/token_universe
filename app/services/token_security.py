@@ -61,6 +61,11 @@ async def fetch_mint_security(mint: str) -> dict:
                     "is_freezable": bool(freeze_auth),
                 }
             )
+    except httpx.HTTPStatusError as e:
+        if e.response is not None and e.response.status_code == 429:
+            cache.set(cache_key, result, 300)
+            return result
+        print(f"[token_universe] mint security fetch failed for {mint}: {e!r}")
     except Exception as e:
         print(f"[token_universe] mint security fetch failed for {mint}: {e!r}")
 
