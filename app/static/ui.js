@@ -175,6 +175,17 @@ window.TokenUniverseUI = (function () {
     applyMetricUI();
     initWatchButtons();
     initDrawer();
+
+    const drawer = qs("#drawer");
+    if (!drawer) {
+      qsa(".tile[data-href]").forEach((tile) => {
+        tile.addEventListener("click", (e) => {
+          if (e.target && e.target.classList && e.target.classList.contains("watchBtn")) return;
+          const href = tile.getAttribute("data-href");
+          if (href) window.location.href = href;
+        });
+      });
+    }
   }
 
   // Portfolio pages (positions/watchlist) are client-rendered
@@ -218,6 +229,13 @@ window.TokenUniverseUI = (function () {
     return v.toFixed(7).replace(/\.?0+$/,"");
   }
 
+  function formatQty(n) {
+    const v = Number(n);
+    if (!isFinite(v)) return "?";
+    if (Math.abs(v) >= 1) return compact(v);
+    return v.toFixed(6).replace(/\.?0+$/,"");
+  }
+
   function rarityFromLiq(liq) {
     const v = Number(liq || 0);
     if (v >= 10000000) return "legendary";
@@ -226,7 +244,7 @@ window.TokenUniverseUI = (function () {
     return "common";
   }
 
-  function renderClientCard(best, rank) {
+  function renderClientCard(best, rank, position) {
     const mint = best.baseToken.address;
     const img = (best.info && best.info.imageUrl) ? best.info.imageUrl : "";
     const mcap = best.marketCap || best.fdv || 0;
@@ -235,6 +253,7 @@ window.TokenUniverseUI = (function () {
     const pc = best.priceChange || {};
     const rarity = best._rarity || rarityFromLiq(liq);
     const verified = !!best._verified;
+    const priceUsd = Number(best.priceUsd || 0);
 
     // pre-format for drawer
     best._mcapFmt = compact(mcap);
@@ -245,7 +264,6 @@ window.TokenUniverseUI = (function () {
     div.className = `tile ${rarity}`;
     div.setAttribute("data-token", mint);
     div.innerHTML = `
-      <div class="rankPill">#${rank}</div>
       <div class="tileRow">
         <img class="tokenIconXL" src="${img}" alt="${best.baseToken.symbol || ""}"/>
         <div class="tileMeta">
@@ -265,9 +283,19 @@ window.TokenUniverseUI = (function () {
           </div>
         </div>
         <div class="tileMetric metricBox" data-price="$${compact(best.priceUsd)}" data-mcap="$${compact(mcap)}">
-          <div class="metricLabel">Market Cap</div>
-          <div class="metricMain">$${compact(mcap)}</div>
+          <div class="metricTop">
+            <div>
+              <div class="metricLabel">Market Cap</div>
+              <div class="metricMain">$${compact(mcap)}</div>
+            </div>
+            <div class="sparkWrap ${Number(pc.h24) > 0 ? "pos" : (Number(pc.h24) < 0 ? "neg" : "flat")}">
+              ${sparklineSvg(pc)}
+            </div>
+          </div>
           <div class="metricSub">Liq <b>$${compact(liq)}</b> • Vol <b>$${compact(vol)}</b></div>
+          ${position ? `
+          <div class="metricSub positionSub">Holding <b>${formatQty(position.qty)}</b> @ <b>$${compact(position.entryPriceUsd)}</b> • Value <b>$${compact(position.qty * priceUsd)}</b></div>
+          ` : ``}
           <button class="watchBtn" type="button" title="Toggle watchlist">☆</button>
         </div>
       </div>
@@ -320,6 +348,50 @@ window.TokenUniverseUI = (function () {
     if (!isFinite(v)) return "—";
     const sign = v > 0 ? "+" : "";
     return (Math.abs(v) < 10) ? `${sign}${v.toFixed(2)}%` : `${sign}${v.toFixed(1)}%`;
+  }
+
+  function sparklineSvg(priceChange) {
+    const pc = priceChange || {};
+    const toNum = (val) => {
+      const v = Number(val);
+      return isFinite(v) ? v : null;
+    };
+    const h24 = toNum(pc.h24);
+    const h6 = toNum(pc.h6);
+    const h1 = toNum(pc.h1);
+    let pts;
+    if (h24 === null && h6 === null && h1 === null) {
+      pts = [[0, 0], [24, 0]];
+    } else {
+      const v0 = h24 !== null ? -h24 : 0;
+      const v18 = h6 !== null ? -h6 : 0;
+      const v23 = h1 !== null ? -h1 : v18;
+      pts = [[0, v0], [18, v18], [23, v23], [24, 0]];
+    }
+
+    const xs = pts.map(p => p[0]);
+    const ys = pts.map(p => p[1]);
+    let minY = Math.min(...ys);
+    let maxY = Math.max(...ys);
+    if (Math.abs(maxY - minY) < 1e-6) {
+      minY -= 1;
+      maxY += 1;
+    }
+    const width = 150;
+    const height = 44;
+    const pad = 4;
+    const sx = (x) => pad + (x - Math.min(...xs)) * (width - pad * 2) / (Math.max(...xs) - Math.min(...xs));
+    const sy = (y) => pad + (maxY - y) * (height - pad * 2) / (maxY - minY);
+    const poly = pts.map(([x, y]) => `${sx(x).toFixed(1)},${sy(y).toFixed(1)}`).join(" ");
+    const baseline = sy(0).toFixed(1);
+
+    return `
+      <svg class="spark" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <line x1="${pad}" y1="${baseline}" x2="${width - pad}" y2="${baseline}" stroke="currentColor" stroke-opacity="0.18" stroke-width="1"/>
+        <polyline points="${poly}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="${sx(pts[pts.length - 1][0]).toFixed(1)}" cy="${sy(pts[pts.length - 1][1]).toFixed(1)}" r="2.4" fill="currentColor"/>
+      </svg>
+    `;
   }
 
   async function openDrawerFromClient(mint) {
@@ -414,7 +486,7 @@ window.TokenUniverseUI = (function () {
 
       if (!tokens.length) {
         if (activeTab === "watchlist") setEmpty("Star tokens anywhere to add them to Watchlist.");
-        else setEmpty("No open positions yet. Buying UI comes next.");
+        else setEmpty("No open positions yet. Buy from any coin page to start tracking.");
         return;
       }
 
@@ -425,9 +497,12 @@ window.TokenUniverseUI = (function () {
       const res = await fetch("/api/best_pairs?" + qs);
       const bests = await res.json();
 
+      const positions = S.derivePositions();
+      const posMap = new Map(positions.map(p => [p.tokenMint, p]));
+
       // rank & render
       cards.innerHTML = "";
-      bests.forEach((b, i) => cards.appendChild(renderClientCard(b, i + 1)));
+      bests.forEach((b, i) => cards.appendChild(renderClientCard(b, i + 1, posMap.get(b.baseToken.address))));
 
       applyMetricUI();
     }
