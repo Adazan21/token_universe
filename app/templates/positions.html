@@ -114,13 +114,25 @@
           <button class="btn btnGhost" id="drawerSell" type="button">Sell @ Market</button>
         </div>
         <div class="tradeQuick" data-trade="quick">
-          <div class="quickButtons">
-            <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
-            <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
-            <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
-            <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
+          <div class="quickRow" data-quick-side="buy">
+            <div class="quickLabel">Buy size</div>
+            <div class="quickButtons">
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-settings>⚙️</button>
+            </div>
           </div>
-          <button class="btn btnGhost btnSmall" type="button" data-quick-settings>⚙️</button>
+          <div class="quickRow" data-quick-side="sell">
+            <div class="quickLabel">Sell size</div>
+            <div class="quickButtons">
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
+            </div>
+          </div>
         </div>
         <div class="quickSettings" data-trade="quick-settings">
           <div class="quickSettingsTitle">Quick sizes (%)</div>

@@ -464,7 +464,9 @@ body.dense .tileRow{grid-template-columns: 62px 1fr 260px}
 .tradeInputs{display:flex; gap:10px; flex-wrap:wrap}
 .tradeInputs .input{flex:1 1 140px}
 .tradeActions{display:flex; gap:10px; flex-wrap:wrap}
-.tradeQuick{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+.tradeQuick{display:flex; flex-direction:column; gap:10px}
+.quickRow{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.quickLabel{font-size:11px; color:var(--muted2); text-transform:uppercase; letter-spacing:.08em}
 .quickButtons{display:flex; gap:8px; flex-wrap:wrap}
 .quickSettings{
   display:none;
