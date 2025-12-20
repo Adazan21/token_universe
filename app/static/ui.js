@@ -9,6 +9,18 @@ window.TokenUniverseUI = (function () {
     return v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   }
 
+  async function fetchBestPair(mint) {
+    if (!mint) return null;
+    try {
+      const res = await fetch(`/api/token/${encodeURIComponent(mint)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.best || null;
+    } catch (err) {
+      return null;
+    }
+  }
+
   function updateWalletUI() {
     const wallet = S.getWallet();
     const el = qs("#walletBalance");
@@ -284,7 +296,7 @@ window.TokenUniverseUI = (function () {
     return "common";
   }
 
-  function renderClientCard(best, rank) {
+  function renderClientCard(best, rank, position) {
     const mint = best.baseToken.address;
     const img = (best.info && best.info.imageUrl) ? best.info.imageUrl : "";
     const mcap = best.marketCap || best.fdv || 0;
@@ -302,6 +314,11 @@ window.TokenUniverseUI = (function () {
     const div = document.createElement("div");
     div.className = `tile ${rarity}`;
     div.setAttribute("data-token", mint);
+    const holdingStat = position ? `
+        <div class="stat"><div class="statLabel">Holdings</div><div class="statValue">${compact(position.qty)}</div></div>
+        <div class="stat"><div class="statLabel">Entry</div><div class="statValue">$${compact(position.entryPriceUsd)}</div></div>
+      ` : "";
+
     div.innerHTML = `
       <div class="rankPill">${rank}</div>
       <div class="tileRow">
@@ -333,6 +350,7 @@ window.TokenUniverseUI = (function () {
         <div class="stat"><div class="statLabel">Txns 24h</div><div class="statValue">${compact(txns24(best))}</div></div>
         <div class="stat"><div class="statLabel">Buys</div><div class="statValue">${compact(buys24(best))}</div></div>
         <div class="stat"><div class="statLabel">Sells</div><div class="statValue">${compact(sells24(best))}</div></div>
+        ${holdingStat}
       </div>
     `;
 
@@ -456,14 +474,34 @@ window.TokenUniverseUI = (function () {
 
   function bindTradePanel({ mint, priceUsd, priceEl, cashEl, holdingEl, usdInput, qtyInput, hintEl, buyBtn, sellBtn }) {
     if (!mint || !usdInput || !qtyInput || !buyBtn || !sellBtn) return;
-    const price = Number(priceUsd || 0);
-    if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
+    let price = Number(priceUsd || 0);
+    const setPriceUI = () => {
+      if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
+    };
+    setPriceUI();
     if (hintEl) {
       hintEl.textContent = "";
       hintEl.classList.remove("error");
     }
     usdInput.value = "";
     qtyInput.value = "";
+
+    async function refreshPrice({ showError = false } = {}) {
+      const best = await fetchBestPair(mint);
+      const next = best ? Number(best.priceUsd || 0) : 0;
+      if (next) {
+        price = next;
+        setPriceUI();
+        syncFromUsd();
+        syncFromQty();
+        return price;
+      }
+      if (showError && hintEl) {
+        hintEl.textContent = "Live price unavailable. Try again.";
+        hintEl.classList.add("error");
+      }
+      return price;
+    }
 
     function refreshBalances() {
       const wallet = S.getWallet();
@@ -488,15 +526,17 @@ window.TokenUniverseUI = (function () {
     usdInput.oninput = () => syncFromUsd();
     qtyInput.oninput = () => syncFromQty();
 
-    function runTrade(side) {
+    async function runTrade(side) {
       const qty = Number(qtyInput.value || 0);
-      if (!price || !qty) {
+      if (!qty) {
         if (hintEl) {
           hintEl.textContent = "Enter a trade amount.";
           hintEl.classList.add("error");
         }
         return;
       }
+      await refreshPrice({ showError: true });
+      if (!price) return;
       const res = S.executeTrade({ tokenMint: mint, side, qty, priceUsd: price });
       if (!res.ok) {
         if (hintEl) {
@@ -518,6 +558,7 @@ window.TokenUniverseUI = (function () {
     buyBtn.onclick = () => runTrade("BUY");
     sellBtn.onclick = () => runTrade("SELL");
     refreshBalances();
+    refreshPrice();
   }
 
   function initCoinPage() {
@@ -591,7 +632,7 @@ window.TokenUniverseUI = (function () {
 
       if (!tokens.length) {
         if (activeTab === "watchlist") setEmpty("Star tokens anywhere to add them to Watchlist.");
-        else setEmpty("No open positions yet. Buying UI comes next.");
+        else setEmpty("No open positions yet. Buy from any token to start tracking.");
         return;
       }
 
@@ -602,14 +643,23 @@ window.TokenUniverseUI = (function () {
       const res = await fetch("/api/best_pairs?" + qs);
       const bests = await res.json();
 
+      const positionMap = new Map();
+      if (activeTab === "positions") {
+        S.derivePositions().forEach((p) => positionMap.set(p.tokenMint, p));
+      }
+
       // rank & render
       cards.innerHTML = "";
-      bests.forEach((b, i) => cards.appendChild(renderClientCard(b, i + 1)));
+      bests.forEach((b, i) => cards.appendChild(renderClientCard(b, i + 1, positionMap.get(b.baseToken.address))));
 
       applyMetricUI();
     }
 
     await load();
+    window.addEventListener("tokenUniverse:trade", async () => {
+      if (activeTab !== "positions") return;
+      await load();
+    });
   }
 
   return {

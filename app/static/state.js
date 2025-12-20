@@ -186,6 +186,7 @@ window.TokenUniverseState = (function () {
     const trade = addTrade({ tokenMint: mint, side: s, qty: q, priceUsd: price });
     wallet.cashUsd += (s === "BUY") ? -total : total;
     setWallet(wallet);
+    window.dispatchEvent(new CustomEvent("tokenUniverse:trade", { detail: { trade, wallet } }));
     return { ok: true, trade, wallet };
   }
 
