@@ -52,7 +52,8 @@ window.TokenUniverseState = (function () {
     return _load(KEY_PREFS, {
       metric: "mcap",
       density: "comfortable",
-      quote: "USDC"
+      quote: "USDC",
+      quickPercents: [5, 10, 50, 100]
     });
   }
   function setPrefs(p) {
