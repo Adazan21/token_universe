@@ -749,8 +749,10 @@ window.TokenUniverseUI = (function () {
       });
 
       const statPrice = qs("[data-live='price']");
+      const statUpdated = qs("[data-live='price-updated']");
       const metricBox = qs(".metricBox");
       const priceMetric = metricBox ? metricBox.getAttribute("data-price") : null;
+      let lastPrice = Number.isFinite(price) ? price : null;
 
       if (coinLiveStop) coinLiveStop();
       coinLiveStop = startLivePriceFeed({
@@ -761,6 +763,11 @@ window.TokenUniverseUI = (function () {
           if (tradeApi) tradeApi.setPrice(priceUsd);
           tradePanel.setAttribute("data-price", String(priceUsd));
           if (statPrice) statPrice.textContent = `$${compact(priceUsd)}`;
+          if (statUpdated && priceUsd !== lastPrice) {
+            const stamp = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            statUpdated.textContent = `Updated: ${stamp}`;
+            lastPrice = priceUsd;
+          }
           if (metricBox) {
             metricBox.setAttribute("data-price", `$${compact(priceUsd)}`);
             const prefs = S.getPrefs();
