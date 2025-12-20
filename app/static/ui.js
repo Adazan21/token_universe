@@ -1,5 +1,6 @@
 window.TokenUniverseUI = (function () {
   const S = window.TokenUniverseState;
+  let drawerLiveStop = null;
 
   function qs(name) { return document.querySelector(name); }
   function qsa(name) { return Array.from(document.querySelectorAll(name)); }
@@ -7,6 +8,13 @@ window.TokenUniverseUI = (function () {
   function formatUsd(value, digits = 2) {
     const v = Number(value || 0);
     return v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+
+  function formatPct(value) {
+    const v = Number(value);
+    if (!isFinite(v)) return "—";
+    const sign = v > 0 ? "+" : "";
+    return `${sign}${v.toFixed(2)}%`;
   }
 
   function updateWalletUI() {
@@ -67,6 +75,20 @@ window.TokenUniverseUI = (function () {
     });
   }
 
+  function getQuickPercents() {
+    const prefs = S.getPrefs();
+    const defaults = [5, 10, 50, 100];
+    if (!prefs || !Array.isArray(prefs.quickPercents)) return defaults;
+    const clean = prefs.quickPercents.map((v, i) => Number(v || defaults[i]));
+    return clean.map((v, i) => (v > 0 ? Math.min(v, 100) : defaults[i]));
+  }
+
+  function setQuickPercents(values) {
+    const next = values.map((v) => Math.max(1, Math.min(100, Number(v || 0))));
+    S.setPrefs({ quickPercents: next });
+    return next;
+  }
+
   // Watchlist UI
   function initWatchButtons() {
     qsa(".tile[data-token]").forEach((tile) => {
@@ -121,6 +143,7 @@ window.TokenUniverseUI = (function () {
       if (chart) chart.innerHTML = `<div class="drawerSkeleton"></div>`;
       if (tradePanel) tradePanel.setAttribute("data-mint", mint);
       openDrawer();
+      if (drawerLiveStop) drawerLiveStop();
 
       const res = await fetch(`/api/token/${encodeURIComponent(mint)}`);
       const data = await res.json();
@@ -160,17 +183,28 @@ window.TokenUniverseUI = (function () {
 
       if (tradePanel) {
         const price = Number(best ? best.priceUsd : 0);
-        bindTradePanel({
+        const tradeApi = bindTradePanel({
           mint,
           priceUsd: price,
           priceEl: tradePrice,
           cashEl: tradeCash,
           holdingEl: tradeHoldings,
+          pnlEl: qs("#drawerPnl"),
+          valueEl: qs("#drawerValue"),
           usdInput: tradeUsd,
           qtyInput: tradeQty,
           hintEl: tradeHint,
           buyBtn,
-          sellBtn
+          sellBtn,
+          quickWrap: tradePanel.querySelector("[data-trade='quick']"),
+          quickSettings: tradePanel.querySelector("[data-trade='quick-settings']")
+        });
+
+        drawerLiveStop = startLivePriceFeed({
+          mint,
+          onUpdate: ({ priceUsd }) => {
+            if (tradeApi) tradeApi.setPrice(priceUsd);
+          }
         });
       }
 
@@ -424,17 +458,28 @@ window.TokenUniverseUI = (function () {
 
     const tradePanel = qs("#drawerTrade");
     if (tradePanel) {
-      bindTradePanel({
+      const tradeApi = bindTradePanel({
         mint,
         priceUsd: Number(best.priceUsd || 0),
         priceEl: qs("#drawerPrice"),
         cashEl: qs("#drawerCash"),
         holdingEl: qs("#drawerHoldings"),
+        pnlEl: qs("#drawerPnl"),
+        valueEl: qs("#drawerValue"),
         usdInput: qs("#drawerUsd"),
         qtyInput: qs("#drawerQty"),
         hintEl: qs("#drawerHint"),
         buyBtn: qs("#drawerBuy"),
-        sellBtn: qs("#drawerSell")
+        sellBtn: qs("#drawerSell"),
+        quickWrap: tradePanel.querySelector("[data-trade='quick']"),
+        quickSettings: tradePanel.querySelector("[data-trade='quick-settings']")
+      });
+      if (drawerLiveStop) drawerLiveStop();
+      drawerLiveStop = startLivePriceFeed({
+        mint,
+        onUpdate: ({ priceUsd }) => {
+          if (tradeApi) tradeApi.setPrice(priceUsd);
+        }
       });
     }
 
@@ -454,9 +499,27 @@ window.TokenUniverseUI = (function () {
     if (closeBtn) closeBtn.onclick = () => drawer.classList.remove("open");
   }
 
-  function bindTradePanel({ mint, priceUsd, priceEl, cashEl, holdingEl, usdInput, qtyInput, hintEl, buyBtn, sellBtn }) {
+  function bindTradePanel({
+    mint,
+    priceUsd,
+    priceEl,
+    cashEl,
+    holdingEl,
+    pnlEl,
+    valueEl,
+    usdInput,
+    qtyInput,
+    hintEl,
+    buyBtn,
+    sellBtn,
+    quickWrap,
+    quickSettings
+  }) {
     if (!mint || !usdInput || !qtyInput || !buyBtn || !sellBtn) return;
-    const price = Number(priceUsd || 0);
+    let price = Number(priceUsd || 0);
+    let lastInput = "usd";
+    let tradeMode = "buy";
+    let setTradeMode = () => {};
     if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
     if (hintEl) {
       hintEl.textContent = "";
@@ -470,6 +533,7 @@ window.TokenUniverseUI = (function () {
       const holding = S.derivePositions().find(p => p.tokenMint === mint);
       if (cashEl) cashEl.textContent = `$${formatUsd(wallet.cashUsd, 2)}`;
       if (holdingEl) holdingEl.textContent = holding ? `${formatUsd(holding.qty, 6)}` : "0";
+      updatePositionStats();
       updateWalletUI();
     }
 
@@ -485,8 +549,8 @@ window.TokenUniverseUI = (function () {
       usdInput.value = (qty * price).toFixed(2);
     }
 
-    usdInput.oninput = () => syncFromUsd();
-    qtyInput.oninput = () => syncFromQty();
+    usdInput.oninput = () => { lastInput = "usd"; syncFromUsd(); };
+    qtyInput.oninput = () => { lastInput = "qty"; syncFromQty(); };
 
     function runTrade(side) {
       const qty = Number(qtyInput.value || 0);
@@ -515,9 +579,147 @@ window.TokenUniverseUI = (function () {
       initWatchButtons();
     }
 
-    buyBtn.onclick = () => runTrade("BUY");
-    sellBtn.onclick = () => runTrade("SELL");
+    buyBtn.onclick = () => {
+      setTradeMode("buy");
+      runTrade("BUY");
+    };
+    sellBtn.onclick = () => {
+      setTradeMode("sell");
+      runTrade("SELL");
+    };
     refreshBalances();
+
+    function updatePositionStats() {
+      if (!pnlEl && !valueEl) return;
+      const holding = S.derivePositions().find(p => p.tokenMint === mint);
+      if (!holding || !price) {
+        if (pnlEl) pnlEl.textContent = "—";
+        if (valueEl) valueEl.textContent = "$0.00";
+        return;
+      }
+      const value = holding.qty * price;
+      const cost = holding.entryPriceUsd * holding.qty;
+      const pnlUsd = value - cost;
+      const pnlPct = holding.entryPriceUsd ? ((price / holding.entryPriceUsd) - 1) * 100 : 0;
+      if (pnlEl) pnlEl.textContent = `${formatPct(pnlPct)} ($${formatUsd(pnlUsd, 2)})`;
+      if (valueEl) valueEl.textContent = `$${formatUsd(value, 2)}`;
+    }
+
+    function setPrice(nextPrice) {
+      const next = Number(nextPrice || 0);
+      price = next;
+      if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
+      if (lastInput === "usd") syncFromUsd();
+      if (lastInput === "qty") syncFromQty();
+      updatePositionStats();
+    }
+
+    function initQuickUI() {
+      if (!quickWrap || !quickSettings) return;
+      const buyButtons = Array.from(quickWrap.querySelectorAll("[data-quick-side='buy'] [data-quick-index]"));
+      const sellButtons = Array.from(quickWrap.querySelectorAll("[data-quick-side='sell'] [data-quick-index]"));
+      const settingsBtn = quickWrap.querySelector("[data-quick-settings]");
+      const inputs = Array.from(quickSettings.querySelectorAll("[data-quick-input]"));
+      const saveBtn = quickSettings.querySelector("[data-quick-save]");
+      const modeButtons = Array.from(quickWrap.closest(".tradeGrid")?.querySelectorAll("[data-trade='mode']") || []);
+      const actionBlocks = Array.from(quickWrap.querySelectorAll("[data-action]"));
+
+      setTradeMode = (nextMode) => {
+        tradeMode = nextMode;
+        actionBlocks.forEach((block) => {
+          const isMatch = block.getAttribute("data-action") === tradeMode;
+          block.classList.toggle("is-hidden", !isMatch);
+        });
+        modeButtons.forEach((btn) => {
+          btn.classList.toggle("is-active", btn.getAttribute("data-mode") === tradeMode);
+        });
+        if (tradeMode !== "buy") {
+          quickSettings.classList.remove("open");
+          quickSettings.classList.add("is-hidden");
+        } else {
+          quickSettings.classList.remove("is-hidden");
+        }
+      };
+
+      function renderButtons() {
+        const percents = getQuickPercents();
+        buyButtons.forEach((btn, idx) => {
+          const value = percents[idx] ?? 0;
+          btn.textContent = (idx === 3 && Math.round(value) >= 100) ? "Max" : `${value}%`;
+        });
+        sellButtons.forEach((btn, idx) => {
+          const value = percents[idx] ?? 0;
+          btn.textContent = (idx === 3 && Math.round(value) >= 100) ? "Max" : `${value}%`;
+        });
+        inputs.forEach((input, idx) => {
+          const value = percents[idx] ?? 0;
+          input.value = value;
+        });
+      }
+
+      function applyPercent(pct, side) {
+        if (!price) return;
+        const wallet = S.getWallet();
+        const holding = S.derivePositions().find(p => p.tokenMint === mint);
+        const useHoldings = side === "sell" && holding && holding.qty > 0;
+        if (useHoldings) {
+          const qty = holding.qty * (pct / 100);
+          qtyInput.value = qty ? qty.toFixed(6).replace(/\.?0+$/,"") : "";
+          lastInput = "qty";
+          syncFromQty();
+        } else {
+          const usd = wallet.cashUsd * (pct / 100);
+          usdInput.value = usd ? usd.toFixed(2) : "";
+          lastInput = "usd";
+          syncFromUsd();
+        }
+      }
+
+      buyButtons.forEach((btn, idx) => {
+        btn.addEventListener("click", () => {
+          const percents = getQuickPercents();
+          const pct = Number(percents[idx] || 0);
+          applyPercent(pct, "buy");
+        });
+      });
+      sellButtons.forEach((btn, idx) => {
+        btn.addEventListener("click", () => {
+          const percents = getQuickPercents();
+          const pct = Number(percents[idx] || 0);
+          applyPercent(pct, "sell");
+        });
+      });
+
+      modeButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const mode = btn.getAttribute("data-mode") || "buy";
+          setTradeMode(mode);
+        });
+      });
+
+      if (settingsBtn) {
+        settingsBtn.addEventListener("click", () => {
+          quickSettings.classList.toggle("open");
+          if (quickSettings.classList.contains("open")) renderButtons();
+        });
+      }
+
+      if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+          const next = inputs.map((input) => Number(input.value || 0));
+          setQuickPercents(next);
+          renderButtons();
+          quickSettings.classList.remove("open");
+        });
+      }
+
+      renderButtons();
+      setTradeMode("buy");
+    }
+
+    initQuickUI();
+
+    return { setPrice, refreshBalances };
   }
 
   function initCoinPage() {
@@ -528,19 +730,69 @@ window.TokenUniverseUI = (function () {
     if (tradePanel) {
       const mint = tradePanel.getAttribute("data-mint");
       const price = Number(tradePanel.getAttribute("data-price") || 0);
-      bindTradePanel({
+      const tradeApi = bindTradePanel({
         mint,
         priceUsd: price,
         priceEl: tradePanel.querySelector("[data-trade='price']"),
         cashEl: tradePanel.querySelector("[data-trade='cash']"),
         holdingEl: tradePanel.querySelector("[data-trade='holdings']"),
+        pnlEl: tradePanel.querySelector("[data-trade='pnl']"),
+        valueEl: tradePanel.querySelector("[data-trade='value']"),
         usdInput: tradePanel.querySelector("[data-trade='usd']"),
         qtyInput: tradePanel.querySelector("[data-trade='qty']"),
         hintEl: tradePanel.querySelector("[data-trade='hint']"),
         buyBtn: tradePanel.querySelector("[data-trade='buy']"),
-        sellBtn: tradePanel.querySelector("[data-trade='sell']")
+        sellBtn: tradePanel.querySelector("[data-trade='sell']"),
+        quickWrap: tradePanel.querySelector("[data-trade='quick']"),
+        quickSettings: tradePanel.querySelector("[data-trade='quick-settings']")
+      });
+
+      const statPrice = qs("[data-live='price']");
+      const metricBox = qs(".metricBox");
+      const priceMetric = metricBox ? metricBox.getAttribute("data-price") : null;
+
+      startLivePriceFeed({
+        mint,
+        onUpdate: ({ priceUsd, best }) => {
+          if (!best) return;
+          if (tradeApi) tradeApi.setPrice(priceUsd);
+          tradePanel.setAttribute("data-price", String(priceUsd));
+          if (statPrice) statPrice.textContent = `$${compact(priceUsd)}`;
+          if (metricBox) {
+            metricBox.setAttribute("data-price", `$${compact(priceUsd)}`);
+            const prefs = S.getPrefs();
+            if (prefs.metric === "price") applyMetricUI();
+          }
+          if (priceMetric && priceMetric !== metricBox.getAttribute("data-price")) {
+            metricBox.setAttribute("data-price", `$${compact(priceUsd)}`);
+          }
+        }
       });
     }
+  }
+
+  function startLivePriceFeed({ mint, onUpdate, intervalMs = 5000 }) {
+    if (!mint) return null;
+    let active = true;
+    let timer = null;
+    const run = async () => {
+      if (!active) return;
+      try {
+        const res = await fetch(`/api/token/${encodeURIComponent(mint)}`);
+        const data = await res.json();
+        const best = data.best;
+        const priceUsd = Number(best ? best.priceUsd : 0);
+        if (onUpdate) onUpdate({ priceUsd, best });
+      } catch {
+        // ignore transient failures
+      }
+      if (active) timer = setTimeout(run, intervalMs);
+    };
+    run();
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
   }
 
   async function initPortfolioPage({ activeTab }) {
