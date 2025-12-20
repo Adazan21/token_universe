@@ -1,6 +1,7 @@
 window.TokenUniverseUI = (function () {
   const S = window.TokenUniverseState;
   let drawerLiveStop = null;
+  let coinLiveStop = null;
 
   function qs(name) { return document.querySelector(name); }
   function qsa(name) { return Array.from(document.querySelectorAll(name)); }
@@ -751,8 +752,10 @@ window.TokenUniverseUI = (function () {
       const metricBox = qs(".metricBox");
       const priceMetric = metricBox ? metricBox.getAttribute("data-price") : null;
 
-      startLivePriceFeed({
+      if (coinLiveStop) coinLiveStop();
+      coinLiveStop = startLivePriceFeed({
         mint,
+        intervalMs: 1000, // keep coin view price ticking without manual refresh
         onUpdate: ({ priceUsd, best }) => {
           if (!best) return;
           if (tradeApi) tradeApi.setPrice(priceUsd);
@@ -768,6 +771,11 @@ window.TokenUniverseUI = (function () {
           }
         }
       });
+
+      window.addEventListener("pagehide", () => {
+        if (coinLiveStop) coinLiveStop(); // cleanup polling when leaving coin page
+        coinLiveStop = null;
+      }, { once: true });
     }
   }
 
