@@ -1,6 +1,7 @@
 window.TokenUniverseUI = (function () {
   const S = window.TokenUniverseState;
   let drawerLiveStop = null;
+  let coinLiveStop = null;
 
   function qs(name) { return document.querySelector(name); }
   function qsa(name) { return Array.from(document.querySelectorAll(name)); }
@@ -748,16 +749,25 @@ window.TokenUniverseUI = (function () {
       });
 
       const statPrice = qs("[data-live='price']");
+      const statUpdated = qs("[data-live='price-updated']");
       const metricBox = qs(".metricBox");
       const priceMetric = metricBox ? metricBox.getAttribute("data-price") : null;
+      let lastPrice = Number.isFinite(price) ? price : null;
 
-      startLivePriceFeed({
+      if (coinLiveStop) coinLiveStop();
+      coinLiveStop = startLivePriceFeed({
         mint,
+        intervalMs: 1000, // keep coin view price ticking without manual refresh
         onUpdate: ({ priceUsd, best }) => {
           if (!best) return;
           if (tradeApi) tradeApi.setPrice(priceUsd);
           tradePanel.setAttribute("data-price", String(priceUsd));
           if (statPrice) statPrice.textContent = `$${compact(priceUsd)}`;
+          if (statUpdated && priceUsd !== lastPrice) {
+            const stamp = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            statUpdated.textContent = `Updated: ${stamp}`;
+            lastPrice = priceUsd;
+          }
           if (metricBox) {
             metricBox.setAttribute("data-price", `$${compact(priceUsd)}`);
             const prefs = S.getPrefs();
@@ -768,6 +778,11 @@ window.TokenUniverseUI = (function () {
           }
         }
       });
+
+      window.addEventListener("pagehide", () => {
+        if (coinLiveStop) coinLiveStop(); // cleanup polling when leaving coin page
+        coinLiveStop = null;
+      }, { once: true });
     }
   }
 
