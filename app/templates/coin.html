@@ -190,6 +190,39 @@
               <button class="btn btnPrimary btnSmall" type="button" data-quick-save>Save</button>
             </div>
           </div>
+          <div class="tradeQuick" data-trade="quick">
+            <div class="quickRow" data-quick-side="buy">
+              <div class="quickLabel">Buy size</div>
+              <div class="quickButtons">
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
+                <button class="btn btnGhost btnSmall" type="button" data-quick-settings>⚙️</button>
+              </div>
+            </div>
+            <div class="quickRow" data-quick-side="sell">
+              <div class="quickLabel">Sell size</div>
+              <div class="quickButtons">
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
+                <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
+              </div>
+            </div>
+          </div>
+          <div class="quickSettings" data-trade="quick-settings">
+            <div class="quickSettingsTitle">Quick sizes (%)</div>
+            <div class="quickSettingsInputs">
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="0"/>
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="1"/>
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="2"/>
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="3"/>
+            </div>
+            <div class="quickSettingsActions">
+              <button class="btn btnPrimary btnSmall" type="button" data-quick-save>Save</button>
+            </div>
+          </div>
           <div class="tradeHint" data-trade="hint"></div>
         </div>
       </div>
