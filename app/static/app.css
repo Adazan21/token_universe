@@ -469,6 +469,7 @@ body.dense .tileRow{grid-template-columns: 62px 1fr 260px}
 .tradeActionBlock.is-hidden{display:none}
 .tradeModeToggle{display:flex; gap:8px; flex-wrap:wrap}
 .tradeModeToggle .is-active{background: rgba(125,211,252,.2); color: var(--text)}
+.quickSettings.is-hidden{display:none}
 .quickSettings{
   display:none;
   border:1px solid rgba(28,43,74,.85);

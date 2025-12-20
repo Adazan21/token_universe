@@ -519,6 +519,7 @@ window.TokenUniverseUI = (function () {
     let price = Number(priceUsd || 0);
     let lastInput = "usd";
     let tradeMode = "buy";
+    let setTradeMode = () => {};
     if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
     if (hintEl) {
       hintEl.textContent = "";
@@ -578,8 +579,14 @@ window.TokenUniverseUI = (function () {
       initWatchButtons();
     }
 
-    buyBtn.onclick = () => runTrade("BUY");
-    sellBtn.onclick = () => runTrade("SELL");
+    buyBtn.onclick = () => {
+      setTradeMode("buy");
+      runTrade("BUY");
+    };
+    sellBtn.onclick = () => {
+      setTradeMode("sell");
+      runTrade("SELL");
+    };
     refreshBalances();
 
     function updatePositionStats() {
@@ -617,7 +624,7 @@ window.TokenUniverseUI = (function () {
       const modeButtons = Array.from(quickWrap.closest(".tradeGrid")?.querySelectorAll("[data-trade='mode']") || []);
       const actionBlocks = Array.from(quickWrap.querySelectorAll("[data-action]"));
 
-      function setTradeMode(nextMode) {
+      setTradeMode = (nextMode) => {
         tradeMode = nextMode;
         actionBlocks.forEach((block) => {
           const isMatch = block.getAttribute("data-action") === tradeMode;
@@ -626,7 +633,13 @@ window.TokenUniverseUI = (function () {
         modeButtons.forEach((btn) => {
           btn.classList.toggle("is-active", btn.getAttribute("data-mode") === tradeMode);
         });
-      }
+        if (tradeMode !== "buy") {
+          quickSettings.classList.remove("open");
+          quickSettings.classList.add("is-hidden");
+        } else {
+          quickSettings.classList.remove("is-hidden");
+        }
+      };
 
       function renderButtons() {
         const percents = getQuickPercents();
