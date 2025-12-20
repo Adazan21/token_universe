@@ -157,8 +157,12 @@
             <input class="input" data-trade="usd" placeholder="USD amount" inputmode="decimal"/>
             <input class="input" data-trade="qty" placeholder="Token qty" inputmode="decimal"/>
           </div>
+          <div class="tradeModeToggle">
+            <button class="btn btnGhost btnSmall is-active" type="button" data-trade="mode" data-mode="buy">Buy</button>
+            <button class="btn btnGhost btnSmall" type="button" data-trade="mode" data-mode="sell">Sell</button>
+          </div>
           <div class="tradeActions" data-trade="quick">
-            <div class="tradeActionBlock">
+            <div class="tradeActionBlock" data-action="buy">
               <button class="btn btnPrimary" data-trade="buy" type="button">Buy @ Market</button>
               <div class="tradeQuickRow" data-quick-side="buy">
                 <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
@@ -168,42 +172,9 @@
                 <button class="btn btnGhost btnSmall" type="button" data-quick-settings>⚙️</button>
               </div>
             </div>
-            <div class="tradeActionBlock">
+            <div class="tradeActionBlock" data-action="sell">
               <button class="btn btnGhost" data-trade="sell" type="button">Sell @ Market</button>
               <div class="tradeQuickRow" data-quick-side="sell">
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
-              </div>
-            </div>
-          </div>
-          <div class="quickSettings" data-trade="quick-settings">
-            <div class="quickSettingsTitle">Quick sizes (%)</div>
-            <div class="quickSettingsInputs">
-              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="0"/>
-              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="1"/>
-              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="2"/>
-              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="3"/>
-            </div>
-            <div class="quickSettingsActions">
-              <button class="btn btnPrimary btnSmall" type="button" data-quick-save>Save</button>
-            </div>
-          </div>
-          <div class="tradeQuick" data-trade="quick">
-            <div class="quickRow" data-quick-side="buy">
-              <div class="quickLabel">Buy size</div>
-              <div class="quickButtons">
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
-                <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
-                <button class="btn btnGhost btnSmall" type="button" data-quick-settings>⚙️</button>
-              </div>
-            </div>
-            <div class="quickRow" data-quick-side="sell">
-              <div class="quickLabel">Sell size</div>
-              <div class="quickButtons">
                 <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
                 <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
                 <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>

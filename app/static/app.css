@@ -466,6 +466,9 @@ body.dense .tileRow{grid-template-columns: 62px 1fr 260px}
 .tradeActions{display:flex; gap:12px; flex-wrap:wrap}
 .tradeActionBlock{display:flex; flex-direction:column; gap:8px}
 .tradeQuickRow{display:flex; gap:8px; flex-wrap:wrap}
+.tradeActionBlock.is-hidden{display:none}
+.tradeModeToggle{display:flex; gap:8px; flex-wrap:wrap}
+.tradeModeToggle .is-active{background: rgba(125,211,252,.2); color: var(--text)}
 .quickSettings{
   display:none;
   border:1px solid rgba(28,43,74,.85);

@@ -518,6 +518,7 @@ window.TokenUniverseUI = (function () {
     if (!mint || !usdInput || !qtyInput || !buyBtn || !sellBtn) return;
     let price = Number(priceUsd || 0);
     let lastInput = "usd";
+    let tradeMode = "buy";
     if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
     if (hintEl) {
       hintEl.textContent = "";
@@ -613,6 +614,19 @@ window.TokenUniverseUI = (function () {
       const settingsBtn = quickWrap.querySelector("[data-quick-settings]");
       const inputs = Array.from(quickSettings.querySelectorAll("[data-quick-input]"));
       const saveBtn = quickSettings.querySelector("[data-quick-save]");
+      const modeButtons = Array.from(quickWrap.closest(".tradeGrid")?.querySelectorAll("[data-trade='mode']") || []);
+      const actionBlocks = Array.from(quickWrap.querySelectorAll("[data-action]"));
+
+      function setTradeMode(nextMode) {
+        tradeMode = nextMode;
+        actionBlocks.forEach((block) => {
+          const isMatch = block.getAttribute("data-action") === tradeMode;
+          block.classList.toggle("is-hidden", !isMatch);
+        });
+        modeButtons.forEach((btn) => {
+          btn.classList.toggle("is-active", btn.getAttribute("data-mode") === tradeMode);
+        });
+      }
 
       function renderButtons() {
         const percents = getQuickPercents();
@@ -663,6 +677,13 @@ window.TokenUniverseUI = (function () {
         });
       });
 
+      modeButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const mode = btn.getAttribute("data-mode") || "buy";
+          setTradeMode(mode);
+        });
+      });
+
       if (settingsBtn) {
         settingsBtn.addEventListener("click", () => {
           quickSettings.classList.toggle("open");
@@ -680,6 +701,7 @@ window.TokenUniverseUI = (function () {
       }
 
       renderButtons();
+      setTradeMode("buy");
     }
 
     initQuickUI();
