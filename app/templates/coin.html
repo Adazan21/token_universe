@@ -116,7 +116,7 @@
           </div>
           <div class="stat">
             <div class="statLabel">Price</div>
-            <div class="statValue">${{ pair.priceUsd | compact }}</div>
+            <div class="statValue" data-live="price">${{ pair.priceUsd | compact }}</div>
           </div>
           <div class="stat">
             <div class="statLabel">Liquidity</div>
@@ -145,6 +145,14 @@
             <span>Holdings</span>
             <strong data-trade="holdings">0</strong>
           </div>
+          <div class="tradeRow">
+            <span>Open P/L</span>
+            <strong data-trade="pnl">—</strong>
+          </div>
+          <div class="tradeRow">
+            <span>Position value</span>
+            <strong data-trade="value">$0.00</strong>
+          </div>
           <div class="tradeInputs">
             <input class="input" data-trade="usd" placeholder="USD amount" inputmode="decimal"/>
             <input class="input" data-trade="qty" placeholder="Token qty" inputmode="decimal"/>
@@ -152,6 +160,27 @@
           <div class="tradeActions">
             <button class="btn btnPrimary" data-trade="buy" type="button">Buy @ Market</button>
             <button class="btn btnGhost" data-trade="sell" type="button">Sell @ Market</button>
+          </div>
+          <div class="tradeQuick" data-trade="quick">
+            <div class="quickButtons">
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="0">5%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="1">10%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="2">50%</button>
+              <button class="btn btnGhost btnSmall" type="button" data-quick-index="3">Max</button>
+            </div>
+            <button class="btn btnGhost btnSmall" type="button" data-quick-settings>⚙️</button>
+          </div>
+          <div class="quickSettings" data-trade="quick-settings">
+            <div class="quickSettingsTitle">Quick sizes (%)</div>
+            <div class="quickSettingsInputs">
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="0"/>
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="1"/>
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="2"/>
+              <input class="input inputSmall" type="number" min="1" max="100" data-quick-input="3"/>
+            </div>
+            <div class="quickSettingsActions">
+              <button class="btn btnPrimary btnSmall" type="button" data-quick-save>Save</button>
+            </div>
           </div>
           <div class="tradeHint" data-trade="hint"></div>
         </div>
