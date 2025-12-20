@@ -518,6 +518,7 @@ window.TokenUniverseUI = (function () {
     if (!mint || !usdInput || !qtyInput || !buyBtn || !sellBtn) return;
     let price = Number(priceUsd || 0);
     let lastInput = "usd";
+    let quickMode = "BUY";
     if (priceEl) priceEl.textContent = price ? `$${formatUsd(price, 6)}` : "—";
     if (hintEl) {
       hintEl.textContent = "";
@@ -547,8 +548,10 @@ window.TokenUniverseUI = (function () {
       usdInput.value = (qty * price).toFixed(2);
     }
 
-    usdInput.oninput = () => { lastInput = "usd"; syncFromUsd(); };
-    qtyInput.oninput = () => { lastInput = "qty"; syncFromQty(); };
+    usdInput.oninput = () => { lastInput = "usd"; quickMode = "BUY"; syncFromUsd(); };
+    qtyInput.oninput = () => { lastInput = "qty"; quickMode = "SELL"; syncFromQty(); };
+    usdInput.onfocus = () => { quickMode = "BUY"; };
+    qtyInput.onfocus = () => { quickMode = "SELL"; };
 
     function runTrade(side) {
       const qty = Number(qtyInput.value || 0);
@@ -609,8 +612,6 @@ window.TokenUniverseUI = (function () {
     function initQuickUI() {
       if (!quickWrap || !quickSettings) return;
       const buttons = Array.from(quickWrap.querySelectorAll("[data-quick-index]"));
-      const buyButtons = Array.from(quickWrap.querySelectorAll("[data-quick-side='buy'] [data-quick-index]"));
-      const sellButtons = Array.from(quickWrap.querySelectorAll("[data-quick-side='sell'] [data-quick-index]"));
       const settingsBtn = quickWrap.querySelector("[data-quick-settings]");
       const inputs = Array.from(quickSettings.querySelectorAll("[data-quick-input]"));
       const saveBtn = quickSettings.querySelector("[data-quick-save]");
@@ -627,12 +628,12 @@ window.TokenUniverseUI = (function () {
         });
       }
 
-      function applyPercent(pct, side) {
+      function applyPercent(pct) {
         if (!price) return;
         const wallet = S.getWallet();
         const holding = S.derivePositions().find(p => p.tokenMint === mint);
-        const useHoldings = side === "sell" && holding && holding.qty > 0;
-        if (useHoldings) {
+        const usingHoldings = quickMode === "SELL" && holding && holding.qty > 0;
+        if (usingHoldings) {
           const qty = holding.qty * (pct / 100);
           qtyInput.value = qty ? qty.toFixed(6).replace(/\.?0+$/,"") : "";
           lastInput = "qty";
@@ -645,18 +646,11 @@ window.TokenUniverseUI = (function () {
         }
       }
 
-      buyButtons.forEach((btn, idx) => {
+      buttons.forEach((btn, idx) => {
         btn.addEventListener("click", () => {
           const percents = getQuickPercents();
           const pct = Number(percents[idx] || 0);
-          applyPercent(pct, "buy");
-        });
-      });
-      sellButtons.forEach((btn, idx) => {
-        btn.addEventListener("click", () => {
-          const percents = getQuickPercents();
-          const pct = Number(percents[idx] || 0);
-          applyPercent(pct, "sell");
+          applyPercent(pct);
         });
       });
 
